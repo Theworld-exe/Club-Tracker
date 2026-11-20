@@ -1,0 +1,3709 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ClubPulse — University Club Timetable &amp; Operations</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
+            mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+          },
+        }
+      }
+    };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    [x-cloak] { display: none !important; }
+    :root {
+      --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+    }
+    body {
+      background-color: #09090b;
+      color: #f4f4f5;
+      font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+      -webkit-font-smoothing: antialiased;
+    }
+    .tabular-nums { font-variant-numeric: tabular-nums; }
+    .btn-press {
+      transition: transform 140ms var(--ease-out-strong), background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+    }
+    .btn-press:active:not(:disabled) {
+      transform: scale(0.97);
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .card-lift {
+        transition: transform 160ms var(--ease-out-strong), border-color 160ms ease, background-color 160ms ease;
+      }
+      .card-lift:hover {
+        transform: translateY(-1px);
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .btn-press, .card-lift {
+        transition: none !important;
+        transform: none !important;
+      }
+    }
+    ::-webkit-scrollbar { width: 7px; height: 7px; }
+    ::-webkit-scrollbar-track { background: #09090b; }
+    ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+  </style>
+</head>
+<body x-data="clubApp()" x-init="init()" class="min-h-screen bg-zinc-950 text-zinc-100 selection:bg-emerald-500/30 selection:text-emerald-200">
+
+  <!-- TOP NAVIGATION BAR -->
+  <header class="sticky top-0 z-30 border-b border-zinc-800/80 bg-zinc-950/90 backdrop-blur-md">
+    <div class="mx-auto max-w-[1460px] px-4 sm:px-6">
+      <div class="flex h-16 items-center justify-between gap-4">
+        <!-- Brand & Live Operational Counts -->
+        <div class="flex items-center gap-3.5">
+          <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500/20 to-sky-500/20 ring-1 ring-emerald-400/30">
+            <svg class="h-5 w-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <div>
+            <div class="flex items-center gap-2.5">
+              <h1 class="text-sm sm:text-base font-semibold tracking-tight text-zinc-100">ClubPulse Operations</h1>
+              <span class="hidden md:inline-flex items-center gap-1.5 rounded-full bg-zinc-900 px-2.5 py-0.5 text-[11px] font-medium text-zinc-400 ring-1 ring-zinc-800 tabular-nums">
+                <span class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+                <span x-text="`${promos.length} Promos · ${activeMemberCount} Active (${members.length} Total)`"></span>
+              </span>
+            </div>
+            <p class="hidden sm:block text-xs text-zinc-500">University Timetable Analyzer, Meeting Scheduler &amp; Stand Shift Planner</p>
+          </div>
+        </div>
+
+        <!-- Topbar Actions -->
+        <div class="flex items-center gap-2 sm:gap-2.5">
+          <!-- Workspace Backup / Restore / Export -->
+          <button
+            @click="workspaceModalOpen = true"
+            class="btn-press inline-flex items-center gap-1.5 rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-medium text-zinc-200 ring-1 ring-zinc-800 hover:bg-zinc-800 hover:ring-zinc-700"
+            title="Backup, restore, export CSV/SQLite, or reset workspace"
+          >
+            <svg class="h-3.5 w-3.5 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+            </svg>
+            <span class="hidden sm:inline">Workspace &amp; Backup</span>
+            <span class="sm:hidden">Backup</span>
+          </button>
+
+          <!-- Gemini API Key Settings -->
+          <button
+            @click="openSettingsModal()"
+            class="btn-press inline-flex items-center gap-2 rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-medium ring-1 transition"
+            :class="hasGeminiKey ? 'text-zinc-200 ring-zinc-800 hover:bg-zinc-800' : 'text-amber-300 ring-amber-500/40 bg-amber-500/10 hover:bg-amber-500/15'"
+          >
+            <span class="h-2 w-2 rounded-full" :class="hasGeminiKey ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse'"></span>
+            <span class="hidden sm:inline" x-text="hasGeminiKey ? 'Gemini Ready' : 'Set API Key'"></span>
+            <svg class="h-3.5 w-3.5 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- 4 Main View Navigation Tabs -->
+      <nav class="flex items-center gap-1 overflow-x-auto pb-2 pt-0.5 no-scrollbar" aria-label="Main views">
+        <button
+          @click="switchTab('radar')"
+          class="btn-press inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs sm:text-sm font-medium whitespace-nowrap"
+          :class="activeTab === 'radar' ? 'bg-zinc-800/90 text-white ring-1 ring-zinc-700/80 shadow-sm' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60'"
+        >
+          <span class="h-2 w-2 rounded-full bg-emerald-400" x-show="activeTab === 'radar'"></span>
+          <span>1. Live Radar &amp; Filter</span>
+        </button>
+
+        <button
+          @click="switchTab('heatmap')"
+          class="btn-press inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs sm:text-sm font-medium whitespace-nowrap"
+          :class="activeTab === 'heatmap' ? 'bg-zinc-800/90 text-white ring-1 ring-zinc-700/80 shadow-sm' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60'"
+        >
+          <span class="h-2 w-2 rounded-full bg-sky-400" x-show="activeTab === 'heatmap'"></span>
+          <span>2. Heatmap &amp; Meetings</span>
+          <span x-show="savedMeetings.length > 0" class="rounded-full bg-sky-500/20 px-1.5 py-0.2 text-[10px] font-mono text-sky-300 tabular-nums" x-text="savedMeetings.length"></span>
+        </button>
+
+        <button
+          @click="switchTab('shifts')"
+          class="btn-press inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs sm:text-sm font-medium whitespace-nowrap"
+          :class="activeTab === 'shifts' ? 'bg-zinc-800/90 text-white ring-1 ring-zinc-700/80 shadow-sm' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60'"
+        >
+          <span class="h-2 w-2 rounded-full bg-amber-400" x-show="activeTab === 'shifts'"></span>
+          <span>3. Exhibition Shift Planner</span>
+          <span x-show="savedShiftPlans.length > 0" class="rounded-full bg-amber-500/20 px-1.5 py-0.2 text-[10px] font-mono text-amber-300 tabular-nums" x-text="savedShiftPlans.length"></span>
+        </button>
+
+        <button
+          @click="switchTab('setup')"
+          class="btn-press inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs sm:text-sm font-medium whitespace-nowrap"
+          :class="activeTab === 'setup' ? 'bg-zinc-800/90 text-white ring-1 ring-zinc-700/80 shadow-sm' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60'"
+        >
+          <span class="h-2 w-2 rounded-full bg-violet-400" x-show="activeTab === 'setup'"></span>
+          <span>4. Promos &amp; Members Setup</span>
+          <span x-show="scanQueue.length > 0" class="rounded-full bg-emerald-500/20 px-1.5 py-0.2 text-[10px] font-mono text-emerald-300 tabular-nums" x-text="scanQueue.length"></span>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- MAIN WORKSPACE -->
+  <main class="mx-auto max-w-[1460px] px-4 py-6 sm:px-6 space-y-6">
+
+    <!-- Clean Production First-Run Setup Banner (Only when DB has 0 promos & 0 members) -->
+    <div
+      x-show="initialized && promos.length === 0 && members.length === 0"
+      x-cloak
+      class="rounded-2xl border border-zinc-800 bg-gradient-to-r from-zinc-900 via-zinc-900/95 to-zinc-950 p-5 sm:p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-5"
+    >
+      <div class="space-y-1.5">
+        <div class="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-emerald-400">
+          <span>Workspace Ready</span>
+        </div>
+        <h2 class="text-base sm:text-lg font-semibold text-zinc-100">Set up your club's academic timetables &amp; member roster</h2>
+        <p class="text-xs sm:text-sm text-zinc-400 max-w-2xl">
+          Start by batch-scanning your university PDF/image timetables (or adding promos manually), then import your club roster CSV or restore an existing <code class="text-zinc-200">.json</code> workspace backup.
+        </p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2.5 shrink-0">
+        <button
+          @click="activeTab = 'setup'; setupSubTab = 'scanner'"
+          class="btn-press rounded-xl bg-emerald-500 px-4 py-2.5 text-xs sm:text-sm font-semibold text-zinc-950 hover:bg-emerald-400"
+        >
+          1. Scan Timetables
+        </button>
+        <button
+          @click="activeTab = 'setup'; setupSubTab = 'members'"
+          class="btn-press rounded-xl bg-zinc-800 px-4 py-2.5 text-xs sm:text-sm font-medium text-zinc-100 ring-1 ring-zinc-700 hover:bg-zinc-700"
+        >
+          2. Import Member CSV
+        </button>
+        <button
+          @click="workspaceModalOpen = true"
+          class="btn-press rounded-xl bg-zinc-950 px-4 py-2.5 text-xs sm:text-sm font-medium text-zinc-300 ring-1 ring-zinc-800 hover:bg-zinc-900"
+        >
+          Restore Backup
+        </button>
+      </div>
+    </div>
+
+    <!-- =================================================================== -->
+    <!-- VIEW 1: LIVE RADAR & SESSION-TYPE FILTER                            -->
+    <!-- =================================================================== -->
+    <section x-show="activeTab === 'radar'" x-cloak class="space-y-5">
+      <div class="rounded-2xl border border-zinc-800/80 bg-zinc-900/70 p-4 sm:p-5 space-y-4">
+        <div class="flex flex-wrap items-end justify-between gap-4">
+          <div class="flex flex-wrap items-end gap-3">
+            <div>
+              <label class="block text-[11px] font-medium uppercase tracking-wider text-zinc-400 mb-1.5">Day</label>
+              <select
+                x-model="radarDay"
+                @change="fetchRadarBreakdown()"
+                class="rounded-xl border border-zinc-800 bg-zinc-950 px-3.5 py-2 text-sm font-medium text-zinc-100 focus:border-emerald-500 focus:outline-none"
+              >
+                <template x-for="d in DAYS" :key="d"><option :value="d" x-text="d"></option></template>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-medium uppercase tracking-wider text-zinc-400 mb-1.5">90-Min Slot</label>
+              <select
+                x-model="radarSlot"
+                @change="fetchRadarBreakdown()"
+                class="rounded-xl border border-zinc-800 bg-zinc-950 px-3.5 py-2 text-sm font-mono font-medium text-zinc-100 focus:border-emerald-500 focus:outline-none"
+              >
+                <template x-for="s in TIME_SLOTS" :key="s"><option :value="s" x-text="s"></option></template>
+              </select>
+            </div>
+
+            <button
+              @click="detectRightNow()"
+              class="btn-press inline-flex items-center gap-2 rounded-xl bg-emerald-500/15 px-3.5 py-2 text-sm font-medium text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25"
+            >
+              <span class="relative flex h-2 w-2">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+              </span>
+              <span>Right Now</span>
+            </button>
+
+            <div>
+              <label class="block text-[11px] font-medium uppercase tracking-wider text-zinc-400 mb-1.5">Promo</label>
+              <select
+                x-model="radarPromoId"
+                @change="fetchRadarBreakdown()"
+                class="rounded-xl border border-zinc-800 bg-zinc-950 px-3.5 py-2 text-sm text-zinc-200 focus:border-emerald-500 focus:outline-none"
+              >
+                <option value="">All Promos</option>
+                <template x-for="p in promos" :key="p.id"><option :value="String(p.id)" x-text="p.name"></option></template>
+              </select>
+            </div>
+
+            <label class="inline-flex items-center gap-2 pb-2 text-xs text-zinc-400 cursor-pointer select-none">
+              <input type="checkbox" x-model="radarIncludeInactive" @change="fetchRadarBreakdown()" class="rounded border-zinc-700 bg-zinc-950 text-emerald-500" />
+              <span>Include inactive</span>
+            </label>
+          </div>
+
+          <div class="w-full sm:w-64">
+            <label class="block text-[11px] font-medium uppercase tracking-wider text-zinc-400 mb-1.5">Quick Search</label>
+            <input
+              type="text"
+              x-model="radarSearch"
+              placeholder="Name, role, @discord, module..."
+              class="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3.5 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:border-emerald-500 focus:outline-none"
+            />
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2 pt-1 border-t border-zinc-800/60">
+          <span class="text-xs font-medium text-zinc-400 mr-1">Department:</span>
+          <template x-for="dept in ['All', ...allDepartments]" :key="dept">
+            <button
+              @click="radarDept = dept; fetchRadarBreakdown()"
+              class="btn-press rounded-full px-3 py-1 text-xs font-medium transition"
+              :class="radarDept === dept
+                ? 'bg-zinc-100 text-zinc-950 font-semibold'
+                : 'bg-zinc-950 text-zinc-400 ring-1 ring-zinc-800 hover:text-zinc-200 hover:ring-zinc-700'"
+              x-text="dept"
+            ></button>
+          </template>
+        </div>
+      </div>
+
+      <!-- Session Filter Tabs & KPIs -->
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div class="inline-flex flex-wrap items-center gap-1.5 rounded-xl border border-zinc-800/80 bg-zinc-900/80 p-1.5">
+          <button
+            @click="radarSessionTab = 'ALL'"
+            class="btn-press rounded-lg px-3 py-1.5 text-xs font-medium"
+            :class="radarSessionTab === 'ALL' ? 'bg-zinc-800 text-white ring-1 ring-zinc-700' : 'text-zinc-400 hover:text-zinc-200'"
+          >
+            All Statuses (Kanban)
+            <span class="ml-1 font-mono text-[11px] opacity-75 tabular-nums" x-text="`(${radarData.total_members || 0})`"></span>
+          </button>
+          <button
+            @click="radarSessionTab = 'FREE'"
+            class="btn-press rounded-lg px-3 py-1.5 text-xs font-medium"
+            :class="radarSessionTab === 'FREE' ? 'bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/40' : 'text-zinc-400 hover:text-emerald-300'"
+          >
+            Free Only <span class="ml-1 font-mono text-[11px] tabular-nums" x-text="`(${radarData.counts?.FREE || 0})`"></span>
+          </button>
+          <button
+            @click="radarSessionTab = 'COURS'"
+            class="btn-press rounded-lg px-3 py-1.5 text-xs font-medium"
+            :class="radarSessionTab === 'COURS' ? 'bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/40' : 'text-zinc-400 hover:text-amber-300'"
+          >
+            Has Cours Only <span class="ml-1 font-mono text-[11px] tabular-nums" x-text="`(${radarData.counts?.COURS || 0})`"></span>
+          </button>
+          <button
+            @click="radarSessionTab = 'TD'"
+            class="btn-press rounded-lg px-3 py-1.5 text-xs font-medium"
+            :class="radarSessionTab === 'TD' ? 'bg-sky-500/20 text-sky-300 ring-1 ring-sky-500/40' : 'text-zinc-400 hover:text-sky-300'"
+          >
+            Has TD Only <span class="ml-1 font-mono text-[11px] tabular-nums" x-text="`(${radarData.counts?.TD || 0})`"></span>
+          </button>
+          <button
+            @click="radarSessionTab = 'TP'"
+            class="btn-press rounded-lg px-3 py-1.5 text-xs font-medium"
+            :class="radarSessionTab === 'TP' ? 'bg-rose-500/20 text-rose-300 ring-1 ring-rose-500/40' : 'text-zinc-400 hover:text-rose-300'"
+          >
+            Has TP Only <span class="ml-1 font-mono text-[11px] tabular-nums" x-text="`(${radarData.counts?.TP || 0})`"></span>
+          </button>
+        </div>
+
+        <div class="flex items-center gap-2.5 text-xs tabular-nums">
+          <div class="rounded-xl border border-zinc-800 bg-zinc-900/80 px-3.5 py-2 flex items-center gap-2">
+            <span class="text-zinc-400">Strict Free:</span>
+            <span class="font-semibold text-emerald-400" x-text="`${radarData.strict_percentage ?? 0}%`"></span>
+          </div>
+          <div class="rounded-xl border border-zinc-800 bg-zinc-900/80 px-3.5 py-2 flex items-center gap-2">
+            <span class="text-zinc-400">Weighted Score:</span>
+            <span class="font-semibold text-amber-300" x-text="`${radarData.weighted_score ?? 0}%`"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4-Column Kanban -->
+      <div x-show="radarSessionTab === 'ALL'" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <template x-for="col in RADAR_COLUMNS" :key="col.key">
+          <div class="flex flex-col rounded-2xl border border-zinc-800/90 bg-zinc-900/50 overflow-hidden">
+            <div class="flex items-center justify-between px-4 py-3 border-b border-zinc-800/80 bg-zinc-900/90">
+              <div class="flex items-center gap-2">
+                <span class="h-2.5 w-2.5 rounded-full" :class="col.dotClass"></span>
+                <h3 class="text-xs font-semibold uppercase tracking-wider text-zinc-200" x-text="col.title"></h3>
+              </div>
+              <span class="rounded-full px-2 py-0.5 text-xs font-mono font-semibold tabular-nums" :class="col.badgeClass" x-text="filterRadarBucket(col.key).length"></span>
+            </div>
+            <p class="px-4 py-1.5 text-[11px] text-zinc-500 border-b border-zinc-800/40" x-text="col.subtitle"></p>
+
+            <div class="p-3 space-y-2.5 max-h-[580px] overflow-y-auto">
+              <template x-if="filterRadarBucket(col.key).length === 0">
+                <div class="py-10 text-center text-xs text-zinc-600">No members in <span x-text="col.key"></span>.</div>
+              </template>
+
+              <template x-for="m in filterRadarBucket(col.key)" :key="m.id">
+                <div class="card-lift rounded-xl border border-zinc-800/80 bg-zinc-950/90 p-3 space-y-2" :class="!m.is_active ? 'opacity-55' : ''">
+                  <div class="flex items-start justify-between gap-2">
+                    <div class="min-w-0">
+                      <div class="font-medium text-sm text-zinc-100 leading-snug truncate" x-text="m.full_name"></div>
+                      <div class="flex flex-wrap items-center gap-1 mt-0.5">
+                        <span x-show="m.role && m.role !== 'Member'" class="rounded bg-violet-500/15 px-1.5 py-0.2 text-[10px] font-medium text-violet-300" x-text="m.role"></span>
+                        <span x-show="m.shift_exempt" class="rounded bg-zinc-800 px-1.5 py-0.2 text-[10px] text-zinc-400">Shift-Exempt</span>
+                      </div>
+                    </div>
+                    <span class="shrink-0 rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase" :class="statusBadgeClass(m.status)" x-text="m.status"></span>
+                  </div>
+
+                  <div class="flex flex-wrap items-center gap-1.5 text-[11px]">
+                    <span class="rounded-md bg-zinc-900 px-2 py-0.5 font-medium text-zinc-300 ring-1 ring-zinc-800" x-text="m.department"></span>
+                    <span class="rounded-md bg-zinc-900/70 px-2 py-0.5 font-mono text-zinc-400 ring-1 ring-zinc-800/80" x-text="`${m.promo_name} · ${m.group_name}`"></span>
+                  </div>
+
+                  <template x-if="m.discord || m.phone">
+                    <div class="flex flex-wrap items-center gap-1.5 text-[11px]">
+                      <button
+                        x-show="m.discord"
+                        @click="copyText(m.discord, 'Discord handle')"
+                        class="rounded bg-indigo-500/10 px-1.5 py-0.5 font-mono text-indigo-300 hover:bg-indigo-500/20"
+                        title="Click to copy Discord"
+                        x-text="m.discord.startsWith('@') ? m.discord : `@${m.discord}`"
+                      ></button>
+                      <button
+                        x-show="m.phone"
+                        @click="copyText(m.phone, 'Phone number')"
+                        class="rounded bg-zinc-900 px-1.5 py-0.5 font-mono text-zinc-400 hover:text-zinc-200"
+                        title="Click to copy phone"
+                        x-text="m.phone"
+                      ></button>
+                    </div>
+                  </template>
+
+                  <template x-if="m.status !== 'FREE' && (m.module_name || m.room)">
+                    <div class="pt-1.5 border-t border-zinc-800/70 flex items-center justify-between gap-2 text-xs">
+                      <span class="font-medium text-zinc-300 truncate" x-text="m.module_name || 'Scheduled Session'"></span>
+                      <span x-show="m.room" class="shrink-0 font-mono text-[11px] text-zinc-400 bg-zinc-900 px-1.5 py-0.5 rounded" x-text="m.room"></span>
+                    </div>
+                  </template>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Filtered Single-Status Grid -->
+      <div x-show="radarSessionTab !== 'ALL'" x-cloak class="rounded-2xl border border-zinc-800/80 bg-zinc-900/50 p-4 sm:p-5 space-y-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2.5">
+            <span class="rounded-md px-2.5 py-1 text-xs font-semibold uppercase" :class="statusBadgeClass(radarSessionTab)" x-text="radarSessionTab"></span>
+            <h3 class="text-sm font-semibold text-zinc-200" x-text="`${filterRadarBucket(radarSessionTab).length} Members — ${radarDay} (${radarSlot})`"></h3>
+          </div>
+          <button @click="radarSessionTab = 'ALL'" class="text-xs text-zinc-400 hover:text-zinc-200 underline">Back to 4-Column Kanban</button>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          <template x-for="m in filterRadarBucket(radarSessionTab)" :key="m.id">
+            <div class="card-lift rounded-xl border border-zinc-800 bg-zinc-950 p-3.5 space-y-2">
+              <div class="flex items-start justify-between gap-2">
+                <div>
+                  <div class="font-semibold text-sm text-zinc-100" x-text="m.full_name"></div>
+                  <span x-show="m.role && m.role !== 'Member'" class="text-[11px] text-violet-300" x-text="m.role"></span>
+                </div>
+                <span class="rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase" :class="statusBadgeClass(m.status)" x-text="m.status"></span>
+              </div>
+              <div class="flex flex-wrap items-center gap-1.5 text-xs">
+                <span class="rounded-md bg-zinc-900 px-2 py-0.5 text-zinc-300 ring-1 ring-zinc-800" x-text="m.department"></span>
+                <span class="rounded-md bg-zinc-900 px-2 py-0.5 font-mono text-zinc-400 ring-1 ring-zinc-800" x-text="`${m.promo_name} · ${m.group_name}`"></span>
+              </div>
+              <template x-if="m.status !== 'FREE'">
+                <div class="pt-2 border-t border-zinc-800/80 flex items-center justify-between text-xs">
+                  <span class="text-zinc-300 font-medium" x-text="m.module_name || 'Class session'"></span>
+                  <span x-show="m.room" class="font-mono text-zinc-400" x-text="m.room"></span>
+                </div>
+              </template>
+            </div>
+          </template>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- VIEW 2: WEEKLY HEATMAP, TOP SLOTS & SAVED MEETINGS                  -->
+    <!-- =================================================================== -->
+    <section x-show="activeTab === 'heatmap'" x-cloak class="space-y-5">
+      <div class="rounded-2xl border border-zinc-800/80 bg-zinc-900/70 p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-xs font-medium text-zinc-400 mr-1">Department:</span>
+          <template x-for="dept in ['All', ...allDepartments]" :key="dept">
+            <button
+              @click="heatmapDept = dept; fetchHeatmap()"
+              class="btn-press rounded-full px-3 py-1 text-xs font-medium"
+              :class="heatmapDept === dept ? 'bg-zinc-100 text-zinc-950 font-semibold' : 'bg-zinc-950 text-zinc-400 ring-1 ring-zinc-800 hover:text-zinc-200'"
+              x-text="dept"
+            ></button>
+          </template>
+
+          <select
+            x-model="heatmapPromoId"
+            @change="fetchHeatmap()"
+            class="ml-1 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-xs text-zinc-200 focus:border-emerald-500 focus:outline-none"
+          >
+            <option value="">All Promos</option>
+            <template x-for="p in promos" :key="p.id"><option :value="String(p.id)" x-text="p.name"></option></template>
+          </select>
+        </div>
+
+        <div class="inline-flex items-center rounded-xl border border-zinc-800 bg-zinc-950 p-1 self-start lg:self-auto">
+          <button
+            @click="heatmapMode = 'weighted'"
+            class="btn-press rounded-lg px-3 py-1.5 text-xs font-medium"
+            :class="heatmapMode === 'weighted' ? 'bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/40' : 'text-zinc-400 hover:text-zinc-200'"
+          >
+            Weighted Mode (Cours = 50%)
+          </button>
+          <button
+            @click="heatmapMode = 'strict'"
+            class="btn-press rounded-lg px-3 py-1.5 text-xs font-medium"
+            :class="heatmapMode === 'strict' ? 'bg-sky-500/20 text-sky-300 ring-1 ring-sky-500/40' : 'text-zinc-400 hover:text-zinc-200'"
+          >
+            Strict Mode (100% Free Only)
+          </button>
+        </div>
+      </div>
+
+      <!-- Top 3 Best Meeting Times -->
+      <div class="rounded-2xl border border-zinc-800/80 bg-zinc-900/60 p-4 sm:p-5 space-y-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-sm font-semibold text-zinc-100">Top 3 Recommended Meeting Slots</h2>
+            <p class="text-xs text-zinc-400">Click any card or heatmap cell to inspect members or save a scheduled club meeting.</p>
+          </div>
+          <span class="text-xs font-mono text-zinc-400 tabular-nums" x-text="`Active Cohort: ${heatmapData.total_members || 0}`"></span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <template x-for="(slot, idx) in top3HeatmapSlots" :key="`${slot.day}-${slot.time_slot}`">
+            <div class="card-lift rounded-xl border border-emerald-500/25 bg-zinc-950/90 p-3.5 flex items-center justify-between gap-3">
+              <button @click="openCellDrawer(slot.day, slot.time_slot)" class="text-left flex-1 space-y-1">
+                <div class="flex items-center gap-2">
+                  <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/20 text-[11px] font-bold text-emerald-300 tabular-nums" x-text="`#${idx + 1}`"></span>
+                  <span class="font-semibold text-sm text-zinc-100" x-text="slot.day"></span>
+                  <span class="font-mono text-xs text-zinc-400" x-text="slot.time_slot"></span>
+                </div>
+                <div class="text-xs text-zinc-400 tabular-nums">
+                  <span class="text-emerald-300 font-medium" x-text="`${slot.strict_free_count} Free`"></span>
+                  <span> · </span>
+                  <span class="text-amber-300 font-medium" x-text="`+${slot.cours_count} Cours`"></span>
+                </div>
+              </button>
+              <div class="text-right space-y-1 tabular-nums">
+                <div class="text-xl font-bold text-emerald-400" x-text="`${heatmapMode === 'weighted' ? slot.weighted_score : slot.strict_percentage}%`"></div>
+                <button
+                  @click="openScheduleMeetingModal(slot.day, slot.time_slot)"
+                  class="btn-press rounded bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-300 hover:bg-emerald-500/25"
+                >
+                  + Schedule
+                </button>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- Heatmap Grid -->
+      <div class="rounded-2xl border border-zinc-800/80 bg-zinc-900/60 overflow-x-auto">
+        <table class="w-full min-w-[820px] border-collapse">
+          <thead>
+            <tr class="border-b border-zinc-800 bg-zinc-900/90">
+              <th class="py-3.5 px-4 text-left text-xs font-semibold uppercase tracking-wider text-zinc-400 w-36">Day \ Slot</th>
+              <template x-for="tSlot in TIME_SLOTS" :key="tSlot">
+                <th class="py-3.5 px-3 text-center text-xs font-mono font-semibold text-zinc-300" x-text="tSlot"></th>
+              </template>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-zinc-800/70">
+            <template x-for="day in DAYS" :key="day">
+              <tr>
+                <td class="py-3 px-4 font-semibold text-sm text-zinc-200 bg-zinc-950/40 whitespace-nowrap" x-text="day"></td>
+                <template x-for="tSlot in TIME_SLOTS" :key="`${day}-${tSlot}`">
+                  <td class="p-1.5">
+                    <template x-if="getHeatmapCell(day, tSlot)">
+                      <button
+                        @click="openCellDrawer(day, tSlot)"
+                        class="btn-press w-full rounded-xl p-2.5 text-left transition ring-1"
+                        :class="heatmapCellClasses(getHeatmapCell(day, tSlot))"
+                      >
+                        <div class="flex items-baseline justify-between gap-1 tabular-nums">
+                          <span class="text-base font-bold" x-text="`${cellDisplayScore(getHeatmapCell(day, tSlot))}%`"></span>
+                          <span class="text-[10px] font-mono opacity-80" x-text="`${getHeatmapCell(day, tSlot).strict_free_count}/${getHeatmapCell(day, tSlot).total_members}`"></span>
+                        </div>
+                        <div class="mt-1 flex items-center justify-between text-[11px] opacity-90 tabular-nums">
+                          <span x-text="`${getHeatmapCell(day, tSlot).strict_free_count} Free`"></span>
+                          <span x-show="getHeatmapCell(day, tSlot).cours_count > 0" class="text-amber-200/90" x-text="`+${getHeatmapCell(day, tSlot).cours_count} Cours`"></span>
+                        </div>
+                      </button>
+                    </template>
+                  </td>
+                </template>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Saved Club Meetings Panel -->
+      <div class="rounded-2xl border border-zinc-800/80 bg-zinc-900/60 p-5 space-y-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-sm font-semibold text-zinc-100">Scheduled Club &amp; Department Meetings</h3>
+            <p class="text-xs text-zinc-400">Persisted in SQLite with live-recomputed attendance against your current member schedules.</p>
+          </div>
+          <button
+            @click="openScheduleMeetingModal('Tuesday', '14:00-15:30')"
+            class="btn-press rounded-xl bg-sky-500/20 px-3.5 py-2 text-xs font-semibold text-sky-300 ring-1 ring-sky-500/40 hover:bg-sky-500/30"
+          >
+            + Schedule Meeting
+          </button>
+        </div>
+
+        <template x-if="savedMeetings.length === 0">
+          <p class="py-6 text-center text-xs text-zinc-500">No meetings scheduled yet. Click any heatmap cell or "+ Schedule Meeting" to save one.</p>
+        </template>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          <template x-for="mt in savedMeetings" :key="mt.id">
+            <div class="rounded-xl border border-zinc-800 bg-zinc-950 p-4 flex flex-col justify-between gap-3">
+              <div class="space-y-1.5">
+                <div class="flex items-start justify-between gap-2">
+                  <h4 class="font-semibold text-sm text-zinc-100" x-text="mt.title"></h4>
+                  <span class="rounded-md bg-emerald-500/15 px-2 py-0.5 text-xs font-mono font-bold text-emerald-300 tabular-nums" x-text="`${mt.weighted_score}%`"></span>
+                </div>
+                <div class="text-xs text-zinc-300 font-mono" x-text="`${mt.day} · ${mt.time_slot}${mt.meeting_date ? ' (' + mt.meeting_date + ')' : ''}`"></div>
+                <div class="flex flex-wrap items-center gap-1.5 text-[11px] text-zinc-400">
+                  <span class="rounded bg-zinc-900 px-2 py-0.5 ring-1 ring-zinc-800" x-text="mt.department || 'All Club'"></span>
+                  <span x-show="mt.location" class="rounded bg-zinc-900 px-2 py-0.5 ring-1 ring-zinc-800" x-text="mt.location"></span>
+                  <span class="tabular-nums" x-text="`${mt.expected_free_count} Free + ${mt.expected_cours_count} Cours / ${mt.total_cohort_count}`"></span>
+                </div>
+              </div>
+              <div class="pt-2 border-t border-zinc-800/80 flex items-center justify-between text-xs">
+                <div class="space-x-2">
+                  <button @click="inspectSavedMeeting(mt)" class="text-sky-400 hover:underline">Attendees</button>
+                  <button @click="copyMeetingAnnouncement(mt)" class="text-emerald-400 hover:underline">Copy Discord</button>
+                </div>
+                <button @click="deleteSavedMeeting(mt)" class="text-rose-400 hover:underline">Delete</button>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- VIEW 3: EXHIBITION SHIFT PLANNER + SAVED PLANS                      -->
+    <!-- =================================================================== -->
+    <section x-show="activeTab === 'shifts'" x-cloak class="space-y-5">
+
+      <!-- Saved Shift Plans Strip -->
+      <div class="rounded-2xl border border-zinc-800/80 bg-zinc-900/60 p-4 sm:p-5 space-y-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-sm font-semibold text-zinc-100">Saved Exhibition &amp; Stand Shift Plans</h3>
+            <p class="text-xs text-zinc-400">Reload, tweak manual assignments, or export saved event shift rotations anytime.</p>
+          </div>
+          <span class="text-xs font-mono text-zinc-400 tabular-nums" x-text="`${savedShiftPlans.length} saved`"></span>
+        </div>
+
+        <template x-if="savedShiftPlans.length === 0">
+          <p class="text-xs text-zinc-500 py-2">No saved shift plans yet. Generate a shift schedule below and click <strong>Save Shift Plan</strong>.</p>
+        </template>
+
+        <div x-show="savedShiftPlans.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          <template x-for="sp in savedShiftPlans" :key="sp.id">
+            <div
+              class="rounded-xl border p-3.5 flex items-center justify-between gap-3 transition"
+              :class="activeSavedPlanId === sp.id ? 'border-amber-400/50 bg-amber-500/10' : 'border-zinc-800 bg-zinc-950/90'"
+            >
+              <div class="min-w-0 space-y-0.5">
+                <div class="font-semibold text-xs sm:text-sm text-zinc-100 truncate" x-text="sp.title"></div>
+                <div class="text-[11px] text-zinc-400 font-mono" x-text="`${sp.day}${sp.event_date ? ' · ' + sp.event_date : ''} · ${sp.department || 'All Depts'}`"></div>
+              </div>
+              <div class="flex items-center gap-2 shrink-0 text-xs">
+                <button @click="loadSavedShiftPlan(sp)" class="btn-press rounded-lg bg-zinc-800 px-2.5 py-1 font-medium text-emerald-300 hover:bg-zinc-700">Load</button>
+                <button @click="deleteSavedShiftPlan(sp)" class="text-rose-400 hover:text-rose-300 px-1">&times;</button>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- Generator Configuration -->
+      <div class="rounded-2xl border border-zinc-800/80 bg-zinc-900/70 p-5 space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 class="text-base font-semibold text-zinc-100">Generate Balanced Stand Rotation</h2>
+            <p class="text-xs text-zinc-400">Automatically excludes TD/TP classes, inactive members, and shift-exempt members, with max-2-consecutive shift protection.</p>
+          </div>
+          <button
+            @click="generateShifts()"
+            :disabled="generatingShifts || shiftSlots.length === 0"
+            class="btn-press inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-zinc-950 hover:bg-emerald-400 disabled:opacity-50"
+          >
+            <span x-text="generatingShifts ? 'Generating...' : 'Generate Shift Table'"></span>
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-2 border-t border-zinc-800/70">
+          <div>
+            <label class="block text-[11px] font-medium uppercase tracking-wider text-zinc-400 mb-1.5">Exhibition Day</label>
+            <select x-model="shiftDay" class="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3.5 py-2 text-sm text-zinc-100">
+              <template x-for="d in DAYS" :key="d"><option :value="d" x-text="d"></option></template>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-medium uppercase tracking-wider text-zinc-400 mb-1.5">
+              Members per Shift: <span class="text-emerald-400 font-mono font-bold" x-text="shiftMembersPerSlot"></span>
+            </label>
+            <div class="flex items-center gap-2">
+              <button @click="shiftMembersPerSlot = Math.max(1, shiftMembersPerSlot - 1)" class="btn-press rounded-lg bg-zinc-950 px-3 py-2 text-sm ring-1 ring-zinc-800">-</button>
+              <input type="range" min="1" max="10" x-model.number="shiftMembersPerSlot" class="w-full accent-emerald-500" />
+              <button @click="shiftMembersPerSlot = Math.min(15, shiftMembersPerSlot + 1)" class="btn-press rounded-lg bg-zinc-950 px-3 py-2 text-sm ring-1 ring-zinc-800">+</button>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-medium uppercase tracking-wider text-zinc-400 mb-1.5">Department Filter</label>
+            <select x-model="shiftDept" class="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3.5 py-2 text-sm text-zinc-100">
+              <option value="All">All Departments</option>
+              <template x-for="d in allDepartments" :key="d"><option :value="d" x-text="d"></option></template>
+            </select>
+          </div>
+
+          <div class="flex flex-col justify-center gap-2 pt-2">
+            <label class="inline-flex items-center gap-2.5 cursor-pointer text-xs text-zinc-200">
+              <input type="checkbox" x-model="shiftAllowCours" class="rounded border-zinc-700 bg-zinc-950 text-amber-500" />
+              <span>Allow Cours as backup</span>
+            </label>
+            <label class="inline-flex items-center gap-2.5 cursor-pointer text-xs text-zinc-400">
+              <input type="checkbox" x-model="shiftIncludeExempt" class="rounded border-zinc-700 bg-zinc-950 text-emerald-500" />
+              <span>Include Shift-Exempt members</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Time Slot Checkboxes -->
+        <div class="pt-2 border-t border-zinc-800/60 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-medium uppercase tracking-wider text-zinc-400">Covered Exhibition Slots</span>
+            <div class="flex items-center gap-2 text-xs">
+              <button @click="shiftSlots = [...TIME_SLOTS]" class="text-emerald-400 hover:underline">All Day</button>
+              <span class="text-zinc-700">·</span>
+              <button @click="shiftSlots = TIME_SLOTS.slice(0, 3)" class="text-zinc-400 hover:text-zinc-200">Morning</button>
+              <span class="text-zinc-700">·</span>
+              <button @click="shiftSlots = TIME_SLOTS.slice(3)" class="text-zinc-400 hover:text-zinc-200">Afternoon</button>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+            <template x-for="s in TIME_SLOTS" :key="s">
+              <label
+                class="btn-press flex items-center justify-center gap-2 rounded-xl border px-3 py-2 text-xs font-mono cursor-pointer select-none"
+                :class="shiftSlots.includes(s)
+                  ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-200 font-semibold'
+                  : 'border-zinc-800 bg-zinc-950 text-zinc-400 hover:border-zinc-700'"
+              >
+                <input type="checkbox" :value="s" x-model="shiftSlots" class="sr-only" />
+                <span x-text="s"></span>
+              </label>
+            </template>
+          </div>
+        </div>
+
+        <!-- Optional Ad-hoc Excluded Members Today -->
+        <details class="pt-2 border-t border-zinc-800/60 text-xs">
+          <summary class="cursor-pointer text-zinc-400 hover:text-zinc-200 select-none">
+            Exclude specific unavailable members for this event
+            <span x-show="shiftExcludedIds.length > 0" class="ml-1 text-amber-300 font-mono" x-text="`(${shiftExcludedIds.length} excluded)`"></span>
+          </summary>
+          <div class="mt-2.5 flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-1">
+            <template x-for="m in members.filter(x => x.is_active)" :key="m.id">
+              <button
+                type="button"
+                @click="toggleShiftExcludeMember(m.id)"
+                class="rounded-full px-2.5 py-1 text-[11px] transition"
+                :class="shiftExcludedIds.includes(m.id)
+                  ? 'bg-rose-500/20 text-rose-300 ring-1 ring-rose-500/40 line-through'
+                  : 'bg-zinc-950 text-zinc-400 ring-1 ring-zinc-800 hover:text-zinc-200'"
+                x-text="`${m.full_name} (${m.department})`"
+              ></button>
+            </template>
+          </div>
+        </details>
+      </div>
+
+      <!-- Shift Results + Save Bar + Manual Assignment Tweaks -->
+      <template x-if="shiftResult">
+        <div class="space-y-4">
+          <!-- Save / Update Plan Bar -->
+          <div class="rounded-2xl border border-amber-500/30 bg-zinc-900/80 p-4 flex flex-wrap items-end justify-between gap-3">
+            <div class="flex flex-wrap items-end gap-3 flex-1 min-w-[260px]">
+              <div class="flex-1 min-w-[200px]">
+                <label class="block text-[11px] font-semibold uppercase tracking-wider text-amber-300 mb-1">Shift Plan Name</label>
+                <input
+                  type="text"
+                  x-model="shiftPlanTitle"
+                  placeholder="e.g. Open Day Booth — Main Hall"
+                  class="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3.5 py-2 text-sm text-zinc-100 focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label class="block text-[11px] uppercase tracking-wider text-zinc-400 mb-1">Event Date (Optional)</label>
+                <input
+                  type="date"
+                  x-model="shiftPlanDate"
+                  class="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100"
+                />
+              </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <button
+                @click="saveShiftPlan(false)"
+                class="btn-press rounded-xl bg-amber-400 px-4 py-2 text-xs sm:text-sm font-semibold text-zinc-950 hover:bg-amber-300"
+                x-text="activeSavedPlanId ? 'Save as New Copy' : 'Save Shift Plan'"
+              ></button>
+              <button
+                x-show="activeSavedPlanId"
+                @click="saveShiftPlan(true)"
+                class="btn-press rounded-xl bg-emerald-500 px-4 py-2 text-xs sm:text-sm font-semibold text-zinc-950 hover:bg-emerald-400"
+              >
+                Update Loaded Plan
+              </button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <!-- Rotation Table -->
+            <div class="lg:col-span-2 rounded-2xl border border-zinc-800/80 bg-zinc-900/60 overflow-hidden">
+              <div class="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-zinc-800 bg-zinc-900/90">
+                <div>
+                  <h3 class="text-sm font-semibold text-zinc-100" x-text="`${shiftResult.day} Stand Rotation (${shiftResult.department || 'All Departments'})`"></h3>
+                  <p class="text-xs text-zinc-400 tabular-nums">
+                    <span :class="shiftResult.unfilled_spots_total > 0 ? 'text-rose-400 font-medium' : 'text-emerald-400 font-medium'" x-text="shiftResult.unfilled_spots_total > 0 ? `${shiftResult.unfilled_spots_total} unfilled spot(s)` : 'All shifts staffed'"></span>
+                    <span x-show="shiftResult.excluded_exempt_count > 0" class="text-zinc-500" x-text="` · ${shiftResult.excluded_exempt_count} exempt/unavailable skipped`"></span>
+                  </p>
+                </div>
+                <div class="flex items-center gap-2">
+                  <button @click="copyShiftsMarkdown()" class="btn-press rounded-lg bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-100 ring-1 ring-zinc-700 hover:bg-zinc-700">Copy Discord Markdown</button>
+                  <button @click="exportShiftsCSV()" class="btn-press rounded-lg bg-zinc-950 px-3 py-1.5 text-xs font-medium text-zinc-300 ring-1 ring-zinc-800 hover:bg-zinc-800">Export CSV</button>
+                </div>
+              </div>
+
+              <div class="divide-y divide-zinc-800/70">
+                <template x-for="(sh, shIdx) in shiftResult.shifts" :key="sh.time_slot">
+                  <div class="p-4 sm:px-5 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                    <div class="sm:w-44 shrink-0 space-y-1.5">
+                      <div class="font-mono text-sm font-semibold text-zinc-100" x-text="sh.time_slot"></div>
+                      <div class="flex items-center gap-2 text-[11px] tabular-nums">
+                        <span
+                          class="rounded px-1.5 py-0.5 font-medium"
+                          :class="sh.shortfall === 0 ? 'bg-emerald-500/15 text-emerald-300' : 'bg-rose-500/15 text-rose-300'"
+                          x-text="`${sh.filled_count}/${sh.requested_count} Staffed`"
+                        ></span>
+                      </div>
+                      <button
+                        @click="openAddShiftMemberModal(shIdx)"
+                        class="text-[11px] font-medium text-emerald-400 hover:underline"
+                      >
+                        + Add / Swap Member
+                      </button>
+                    </div>
+
+                    <div class="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <template x-for="(am, mIdx) in sh.assigned_members" :key="am.id">
+                        <div class="rounded-xl border border-zinc-800 bg-zinc-950 p-2.5 flex items-center justify-between gap-2">
+                          <div class="min-w-0">
+                            <div class="font-medium text-xs sm:text-sm text-zinc-100 truncate" x-text="am.full_name"></div>
+                            <div class="text-[11px] text-zinc-400 truncate" x-text="`${am.department} · ${am.promo_name} (${am.group_name})`"></div>
+                          </div>
+                          <div class="flex items-center gap-1.5 shrink-0">
+                            <span
+                              class="rounded-md px-2 py-0.5 text-[10px] font-semibold"
+                              :class="am.availability_status === 'FREE'
+                                ? 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30'
+                                : 'bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30'"
+                              x-text="am.status_note"
+                            ></span>
+                            <button
+                              @click="removeMemberFromShiftSlot(shIdx, mIdx)"
+                              class="text-zinc-500 hover:text-rose-400 px-1"
+                              title="Remove from this shift"
+                            >&times;</button>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <!-- Shifts per Member Summary -->
+            <div class="rounded-2xl border border-zinc-800/80 bg-zinc-900/60 overflow-hidden flex flex-col">
+              <div class="px-4 py-3.5 border-b border-zinc-800 bg-zinc-900/90 flex items-center justify-between">
+                <h3 class="text-sm font-semibold text-zinc-100">Fairness Summary</h3>
+                <span class="text-xs font-mono text-zinc-400 tabular-nums" x-text="`${shiftResult.member_summaries.length} assigned`"></span>
+              </div>
+              <div class="p-3 space-y-2 max-h-[540px] overflow-y-auto">
+                <template x-for="ms in shiftResult.member_summaries" :key="ms.id">
+                  <div class="rounded-xl border border-zinc-800/80 bg-zinc-950/90 p-3 flex items-center justify-between gap-3">
+                    <div class="min-w-0">
+                      <div class="text-xs font-semibold text-zinc-100 truncate" x-text="ms.full_name"></div>
+                      <div class="text-[11px] text-zinc-500 truncate" x-text="ms.assigned_slots.join(', ')"></div>
+                    </div>
+                    <div class="flex items-center gap-1.5 shrink-0 tabular-nums">
+                      <span x-show="ms.cours_shifts > 0" class="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-300" x-text="`${ms.cours_shifts}C`"></span>
+                      <span class="rounded-lg bg-zinc-800 px-2.5 py-1 text-xs font-mono font-bold text-emerald-300" x-text="`${ms.total_shifts} shift${ms.total_shifts > 1 ? 's' : ''}`"></span>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- VIEW 4: BATCH AI SCANNER (VISUAL GRID) & RICH MEMBER DIRECTORY      -->
+    <!-- =================================================================== -->
+    <section x-show="activeTab === 'setup'" x-cloak class="space-y-5">
+      <div class="inline-flex rounded-xl border border-zinc-800 bg-zinc-900 p-1">
+        <button
+          @click="setupSubTab = 'scanner'"
+          class="btn-press rounded-lg px-4 py-2 text-xs sm:text-sm font-medium"
+          :class="setupSubTab === 'scanner' ? 'bg-zinc-800 text-white ring-1 ring-zinc-700' : 'text-zinc-400 hover:text-zinc-200'"
+        >
+          Sub-tab A: Batch AI Scanner &amp; Promos
+        </button>
+        <button
+          @click="setupSubTab = 'members'"
+          class="btn-press rounded-lg px-4 py-2 text-xs sm:text-sm font-medium"
+          :class="setupSubTab === 'members' ? 'bg-zinc-800 text-white ring-1 ring-zinc-700' : 'text-zinc-400 hover:text-zinc-200'"
+        >
+          Sub-tab B: Member Directory &amp; CSV Roster
+        </button>
+      </div>
+
+      <!-- SUB-TAB A: BATCH AI TIMETABLE SCANNER + VISUAL GRID + SAVED PROMOS -->
+      <div x-show="setupSubTab === 'scanner'" class="space-y-6">
+        <div class="rounded-2xl border border-zinc-800/80 bg-zinc-900/60 p-5 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 class="text-base font-semibold text-zinc-100">Batch Gemini 3.8 Flash Timetable Scanner</h2>
+              <p class="text-xs text-zinc-400">Drop one or multiple PDFs/photos at once. Multi-section PDFs automatically split into separate staging promos with a Visual Weekly Grid preview.</p>
+            </div>
+            <button
+              @click="addManualQueueItem()"
+              class="btn-press rounded-xl bg-zinc-800 px-3.5 py-2 text-xs font-medium text-zinc-200 ring-1 ring-zinc-700 hover:bg-zinc-700"
+            >
+              + New Manual Promo Schedule
+            </button>
+          </div>
+
+          <label
+            @dragover.prevent="dragOver = true"
+            @dragleave.prevent="dragOver = false"
+            @drop.prevent="handleFileDrop($event)"
+            class="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-7 text-center cursor-pointer transition"
+            :class="dragOver ? 'border-emerald-400 bg-emerald-500/10' : 'border-zinc-700/80 bg-zinc-950/60 hover:border-zinc-600 hover:bg-zinc-950'"
+          >
+            <input
+              type="file"
+              multiple
+              accept=".pdf,image/png,image/jpeg,image/webp"
+              class="sr-only"
+              @change="handleFileSelect($event)"
+            />
+            <div class="space-y-1.5">
+              <div class="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-zinc-900 ring-1 ring-zinc-800 text-emerald-400">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+              </div>
+              <div class="text-sm font-medium text-zinc-200">
+                Drop one or multiple <span class="text-emerald-400">PDF, PNG, JPG, or WEBP</span> timetables here
+              </div>
+              <p class="text-xs text-zinc-500" x-text="scanningCount > 0 ? `Scanning ${scanningCount} file(s) in queue...` : 'Supports batch uploads and multi-page section PDFs'"></p>
+            </div>
+          </label>
+        </div>
+
+        <!-- Batch Staging Queue & Visual Grid / Table Editor -->
+        <template x-if="scanQueue.length > 0">
+          <div class="rounded-2xl border border-emerald-500/35 bg-zinc-900/80 p-5 space-y-4">
+            <!-- Queue Pills Bar -->
+            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 pb-3">
+              <div class="flex flex-wrap items-center gap-2">
+                <template x-for="(item, qIdx) in scanQueue" :key="item.uid">
+                  <button
+                    @click="selectedQueueIdx = qIdx"
+                    class="btn-press inline-flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-medium ring-1"
+                    :class="selectedQueueIdx === qIdx
+                      ? 'bg-zinc-800 text-white ring-emerald-400/60'
+                      : 'bg-zinc-950 text-zinc-400 ring-zinc-800 hover:text-zinc-200'"
+                  >
+                    <span
+                      class="h-2 w-2 rounded-full"
+                      :class="{
+                        'bg-amber-400 animate-pulse': item.status === 'scanning' || item.status === 'queued',
+                        'bg-emerald-400': item.status === 'ready',
+                        'bg-sky-400': item.status === 'saved',
+                        'bg-rose-400': item.status === 'error'
+                      }"
+                    ></span>
+                    <span x-text="item.promo_name || item.filename"></span>
+                    <span x-show="item.status === 'ready'" class="font-mono text-[10px] opacity-75" x-text="`(${item.slots.length})`"></span>
+                  </button>
+                </template>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <button
+                  x-show="readyQueueCount > 1"
+                  @click="saveAllReadyQueueItems()"
+                  class="btn-press rounded-xl bg-emerald-500 px-3.5 py-1.5 text-xs font-semibold text-zinc-950 hover:bg-emerald-400"
+                  x-text="`Save All Ready (${readyQueueCount})`"
+                ></button>
+                <button
+                  @click="clearFinishedQueue()"
+                  class="btn-press rounded-xl bg-zinc-950 px-3 py-1.5 text-xs text-zinc-400 ring-1 ring-zinc-800 hover:text-zinc-200"
+                >
+                  Clear Queue
+                </button>
+              </div>
+            </div>
+
+            <!-- Active Selected Staging Item -->
+            <template x-if="activeQueueItem">
+              <div class="space-y-4">
+                <template x-if="activeQueueItem.status === 'scanning' || activeQueueItem.status === 'queued'">
+                  <div class="py-10 text-center space-y-3">
+                    <div class="inline-flex items-center gap-2.5 text-sm font-medium text-emerald-300">
+                      <span class="h-4 w-4 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin"></span>
+                      <span>
+                        Extracting structured slots from <strong x-text="activeQueueItem.filename"></strong>
+                        <span class="font-mono text-xs text-emerald-400/90" x-text="`(${scanElapsedSec}s)`"></span>
+                      </span>
+                    </div>
+                    <p x-show="scanElapsedSec >= 7" class="text-xs text-amber-300/90">
+                      High demand on primary model — automatically routing via fast Gemini 3.x Flash fallback...
+                    </p>
+                    <div>
+                      <button
+                        type="button"
+                        @click="cancelActiveScan()"
+                        class="btn-press rounded-xl bg-zinc-950 px-3 py-1.5 text-xs text-zinc-400 ring-1 ring-zinc-800 hover:text-rose-300 hover:ring-rose-500/40"
+                      >
+                        Cancel Scan
+                      </button>
+                    </div>
+                  </div>
+                </template>
+
+                <template x-if="activeQueueItem.status === 'error'">
+                  <div class="rounded-xl border border-rose-500/40 bg-rose-950/40 p-4 flex items-center justify-between gap-4">
+                    <div class="text-xs text-rose-200" x-text="activeQueueItem.error"></div>
+                    <button @click="removeQueueItem(selectedQueueIdx)" class="text-xs text-rose-300 underline shrink-0">Remove</button>
+                  </div>
+                </template>
+
+                <template x-if="activeQueueItem.status === 'ready' || activeQueueItem.status === 'saved'">
+                  <div class="space-y-4">
+                    <div class="flex flex-wrap items-end justify-between gap-4">
+                      <div class="flex flex-wrap items-end gap-3 flex-1">
+                        <div class="w-56">
+                          <label class="block text-[11px] font-semibold uppercase tracking-wider text-emerald-400 mb-1">Promo Name</label>
+                          <input type="text" x-model="activeQueueItem.promo_name" class="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3.5 py-2 text-sm font-semibold text-zinc-100" />
+                        </div>
+                        <div class="w-32">
+                          <label class="block text-[11px] uppercase tracking-wider text-zinc-400 mb-1">Academic Year</label>
+                          <input type="text" x-model="activeQueueItem.academic_year" placeholder="2026/2027" class="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100" />
+                        </div>
+                        <div class="w-64">
+                          <label class="block text-[11px] uppercase tracking-wider text-zinc-400 mb-1">If Promo Exists</label>
+                          <select x-model="activeQueueItem.saveMode" class="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs text-zinc-200">
+                            <option value="merge">Merge group slots (keep other groups)</option>
+                            <option value="overwrite">Overwrite entire Promo schedule</option>
+                            <option value="new_only">Fail if Promo already exists</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <!-- Visual Grid vs Table Switch + Save -->
+                      <div class="flex flex-wrap items-center gap-2">
+                        <div class="inline-flex rounded-xl border border-zinc-800 bg-zinc-950 p-1">
+                          <button
+                            @click="stagingViewMode = 'grid'"
+                            class="rounded-lg px-2.5 py-1 text-xs font-medium"
+                            :class="stagingViewMode === 'grid' ? 'bg-zinc-800 text-white' : 'text-zinc-400'"
+                          >Visual Grid</button>
+                          <button
+                            @click="stagingViewMode = 'table'"
+                            class="rounded-lg px-2.5 py-1 text-xs font-medium"
+                            :class="stagingViewMode === 'table' ? 'bg-zinc-800 text-white' : 'text-zinc-400'"
+                          >Row Table</button>
+                        </div>
+
+                        <button @click="addSlotToActiveQueue('Saturday', '08:00-09:30')" class="btn-press rounded-xl bg-zinc-800 px-3 py-2 text-xs font-medium text-zinc-200">+ Add Slot</button>
+                        <button @click="removeQueueItem(selectedQueueIdx)" class="btn-press rounded-xl bg-zinc-950 px-3 py-2 text-xs text-zinc-400 ring-1 ring-zinc-800">Remove</button>
+                        <button
+                          x-show="activeQueueItem.status === 'saved'"
+                          type="button"
+                          @click="openPromoMembersModal(findPromoByName(activeQueueItem.promo_name))"
+                          class="btn-press rounded-xl bg-sky-500 px-3.5 py-2 text-xs font-semibold text-zinc-950 hover:bg-sky-400 inline-flex items-center gap-1.5"
+                        >
+                          <span>👥 Members</span>
+                          <span class="rounded bg-sky-950/40 px-1 py-0.2 font-mono text-[10px] text-sky-950" x-text="findPromoByName(activeQueueItem.promo_name)?.member_count || 0"></span>
+                        </button>
+                        <button
+                          @click="saveQueueItem(activeQueueItem)"
+                          class="btn-press rounded-xl bg-emerald-500 px-4 py-2 text-xs sm:text-sm font-semibold text-zinc-950 hover:bg-emerald-400"
+                          x-text="activeQueueItem.status === 'saved' ? 'Re-Save Promo' : `Save Promo (${activeQueueItem.slots.length} slots)`"
+                        ></button>
+                      </div>
+                    </div>
+
+                    <!-- SAVED PROMO SUCCESS & MEMBER ATTACHMENT CALLOUT -->
+                    <div x-show="activeQueueItem.status === 'saved'" class="rounded-xl border border-emerald-500/40 bg-emerald-950/30 p-3.5 flex flex-wrap items-center justify-between gap-3">
+                      <div class="flex items-center gap-3">
+                        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-300 font-bold">✓</span>
+                        <div>
+                          <div class="text-xs font-semibold text-emerald-200">
+                            Schedule for <strong x-text="activeQueueItem.promo_name"></strong> is saved in your database!
+                          </div>
+                          <div class="text-[11px] text-zinc-400">
+                            Now add or assign club members to this promo so the system knows whose classes to track in Live Radar, Heatmaps, and Shifts.
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        @click="openPromoMembersModal(findPromoByName(activeQueueItem.promo_name))"
+                        class="btn-press inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-xs font-semibold text-zinc-950 hover:bg-emerald-400 shadow-md shadow-emerald-500/20"
+                      >
+                        <span>👥 Manage &amp; Assign Members</span>
+                        <span class="rounded bg-emerald-950 px-1.5 py-0.5 font-mono text-[10px] text-emerald-300" x-text="`${findPromoByName(activeQueueItem.promo_name)?.member_count || 0} assigned`"></span>
+                      </button>
+                    </div>
+
+                    <!-- VISUAL WEEKLY GRID PREVIEW FOR STAGING -->
+                    <div x-show="stagingViewMode === 'grid'" class="overflow-x-auto rounded-xl border border-zinc-800 bg-zinc-950/70">
+                      <table class="w-full min-w-[860px] border-collapse text-xs">
+                        <thead>
+                          <tr class="border-b border-zinc-800 bg-zinc-900">
+                            <th class="py-2.5 px-3 text-left text-zinc-400 w-28">Day</th>
+                            <template x-for="ts in TIME_SLOTS" :key="ts">
+                              <th class="py-2.5 px-2 text-center font-mono text-zinc-300" x-text="ts"></th>
+                            </template>
+                          </tr>
+                        </thead>
+                        <tbody class="divide-y divide-zinc-800/70">
+                          <template x-for="d in DAYS" :key="d">
+                            <tr>
+                              <td class="p-2.5 font-semibold text-zinc-200 align-top bg-zinc-900/40" x-text="d"></td>
+                              <template x-for="ts in TIME_SLOTS" :key="`${d}-${ts}`">
+                                <td class="p-1.5 align-top border-l border-zinc-800/50 min-w-[125px]">
+                                  <div class="space-y-1">
+                                    <template x-for="entry in getStagingCellSlots(d, ts)" :key="entry.idx">
+                                      <div class="rounded-lg p-1.5 text-[11px] flex items-start justify-between gap-1" :class="statusBadgeClass(entry.slot.session_type)">
+                                        <div class="min-w-0">
+                                          <div class="font-bold font-mono" x-text="`${entry.slot.session_type} · ${entry.slot.group_target}`"></div>
+                                          <div class="truncate opacity-90" x-text="entry.slot.module_name || '—'"></div>
+                                          <div x-show="entry.slot.room" class="font-mono text-[10px] opacity-75" x-text="entry.slot.room"></div>
+                                        </div>
+                                        <button @click="activeQueueItem.slots.splice(entry.idx, 1)" class="opacity-70 hover:opacity-100 font-bold">&times;</button>
+                                      </div>
+                                    </template>
+                                    <button
+                                      @click="addSlotToActiveQueue(d, ts); stagingViewMode = 'table'"
+                                      class="w-full rounded border border-dashed border-zinc-800 py-0.5 text-[10px] text-zinc-500 hover:border-zinc-600 hover:text-zinc-300"
+                                    >+ slot</button>
+                                  </div>
+                                </td>
+                              </template>
+                            </tr>
+                          </template>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <!-- ROW TABLE VIEW FOR STAGING -->
+                    <div x-show="stagingViewMode === 'table'" class="overflow-x-auto max-h-[440px] rounded-xl border border-zinc-800">
+                      <table class="w-full min-w-[780px] text-left text-xs">
+                        <thead class="sticky top-0 bg-zinc-950 text-zinc-400 uppercase border-b border-zinc-800">
+                          <tr>
+                            <th class="py-2.5 px-3">Day</th>
+                            <th class="py-2.5 px-3">Time Slot</th>
+                            <th class="py-2.5 px-3">Type</th>
+                            <th class="py-2.5 px-3">Group (ALL / G1..)</th>
+                            <th class="py-2.5 px-3">Module</th>
+                            <th class="py-2.5 px-3">Room</th>
+                            <th class="py-2.5 px-3 text-right">Remove</th>
+                          </tr>
+                        </thead>
+                        <tbody class="divide-y divide-zinc-800/70 bg-zinc-950/50">
+                          <template x-for="(row, rIdx) in activeQueueItem.slots" :key="rIdx">
+                            <tr>
+                              <td class="p-2">
+                                <select x-model="row.day" class="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-zinc-100">
+                                  <template x-for="d in DAYS" :key="d"><option :value="d" x-text="d"></option></template>
+                                </select>
+                              </td>
+                              <td class="p-2">
+                                <select x-model="row.time_slot" class="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1.5 font-mono text-zinc-100">
+                                  <template x-for="s in TIME_SLOTS" :key="s"><option :value="s" x-text="s"></option></template>
+                                </select>
+                              </td>
+                              <td class="p-2">
+                                <select x-model="row.session_type" class="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1.5 font-semibold text-zinc-100">
+                                  <option value="COURS">COURS</option>
+                                  <option value="TD">TD</option>
+                                  <option value="TP">TP</option>
+                                </select>
+                              </td>
+                              <td class="p-2">
+                                <input type="text" x-model="row.group_target" class="w-24 rounded-lg border border-zinc-800 bg-zinc-900 px-2.5 py-1.5 font-mono uppercase text-zinc-100" />
+                              </td>
+                              <td class="p-2">
+                                <input type="text" x-model="row.module_name" class="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2.5 py-1.5 text-zinc-100" />
+                              </td>
+                              <td class="p-2">
+                                <input type="text" x-model="row.room" class="w-28 rounded-lg border border-zinc-800 bg-zinc-900 px-2.5 py-1.5 text-zinc-100" />
+                              </td>
+                              <td class="p-2 text-right">
+                                <button @click="activeQueueItem.slots.splice(rIdx, 1)" class="rounded-lg px-2 py-1 text-rose-400 hover:bg-rose-500/15">Delete</button>
+                              </td>
+                            </tr>
+                          </template>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </template>
+          </div>
+        </template>
+
+        <!-- Saved Promos List -->
+        <div class="rounded-2xl border border-zinc-800/80 bg-zinc-900/60 p-5 space-y-4">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-zinc-100">Saved Academic Promos</h3>
+            <span class="text-xs font-mono text-zinc-400 tabular-nums" x-text="`${promos.length} total`"></span>
+          </div>
+
+          <template x-if="promos.length === 0">
+            <p class="py-8 text-center text-xs text-zinc-500">No promos saved yet. Drop timetable PDFs/photos above or create one manually.</p>
+          </template>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            <template x-for="p in promos" :key="p.id">
+              <div class="rounded-xl border border-zinc-800 bg-zinc-950/90 p-4 flex flex-col justify-between gap-3">
+                <div class="space-y-2">
+                  <div class="flex items-start justify-between gap-2">
+                    <div>
+                      <h4 class="font-semibold text-sm text-zinc-100" x-text="p.name"></h4>
+                      <span x-show="p.academic_year" class="text-[11px] font-mono text-zinc-500" x-text="p.academic_year"></span>
+                    </div>
+                    <span class="rounded-md bg-zinc-900 px-2 py-0.5 text-[11px] font-mono text-zinc-400 ring-1 ring-zinc-800 tabular-nums" x-text="`${p.slot_count} slots`"></span>
+                  </div>
+                  <button @click="openPromoMembersModal(p)" class="text-xs text-zinc-400 hover:text-emerald-300 tabular-nums inline-flex items-center gap-1 cursor-pointer">
+                    <span x-text="`${p.member_count} member(s)`"></span>
+                    <span class="text-[10px] text-emerald-400 font-semibold underline">Manage</span>
+                  </button>
+                  <div class="flex flex-wrap gap-1 pt-1">
+                    <template x-for="g in p.groups.slice(0, 8)" :key="g">
+                      <span class="rounded bg-zinc-900 px-1.5 py-0.5 font-mono text-[10px] text-zinc-400 ring-1 ring-zinc-800" x-text="g"></span>
+                    </template>
+                  </div>
+                </div>
+                <div class="pt-2.5 border-t border-zinc-800/80 flex items-center justify-between text-xs">
+                  <div class="space-x-2.5">
+                    <button @click="openPromoMembersModal(p)" class="font-semibold text-emerald-300 hover:underline inline-flex items-center gap-1">
+                      <span>👥 Members</span>
+                      <span class="rounded bg-emerald-950 px-1.5 py-0.2 font-mono text-[10px] text-emerald-400 ring-1 ring-emerald-500/30" x-text="p.member_count"></span>
+                    </button>
+                    <button @click="openPromoSlotsInspector(p)" class="font-medium text-zinc-300 hover:underline">Grid / Slots</button>
+                    <button @click="renamePromoPrompt(p)" class="font-medium text-sky-400 hover:underline">Rename</button>
+                  </div>
+                  <button @click="deletePromo(p)" class="font-medium text-rose-400 hover:underline">Delete</button>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUB-TAB B: RICH MEMBER DIRECTORY & DEDUPLICATED CSV ROSTER -->
+      <div x-show="setupSubTab === 'members'" x-cloak class="space-y-5">
+        <div class="rounded-2xl border border-zinc-800/80 bg-zinc-900/70 p-5 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 class="text-base font-semibold text-zinc-100">Club Member Roster &amp; Profiles</h2>
+              <p class="text-xs text-zinc-400">Groups normalize automatically (<code class="text-zinc-300">15</code> → <code class="text-emerald-400">G15</code>). CSV imports deduplicate automatically.</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <select
+                x-model="csvDuplicateMode"
+                class="rounded-xl border border-zinc-800 bg-zinc-950 px-2.5 py-1.5 text-xs text-zinc-300"
+                title="How to handle duplicate members during CSV import"
+              >
+                <option value="update">CSV Duplicates: Update Existing</option>
+                <option value="skip">CSV Duplicates: Skip</option>
+              </select>
+              <button @click="downloadSampleCSV()" class="btn-press rounded-xl bg-zinc-950 px-3 py-1.5 text-xs font-medium text-zinc-300 ring-1 ring-zinc-800 hover:bg-zinc-800">Template CSV</button>
+              <a href="/api/members/export-csv" class="btn-press rounded-xl bg-zinc-950 px-3 py-1.5 text-xs font-medium text-sky-300 ring-1 ring-zinc-800 hover:bg-zinc-800">Export CSV</a>
+              <label class="btn-press inline-flex items-center gap-1.5 rounded-xl bg-emerald-500 px-3.5 py-1.5 text-xs font-semibold text-zinc-950 hover:bg-emerald-400 cursor-pointer">
+                <input type="file" accept=".csv,text/csv" class="sr-only" @change="uploadMembersCSV($event)" />
+                <span>Import CSV</span>
+              </label>
+            </div>
+          </div>
+
+          <form @submit.prevent="addMember()" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-3 border-t border-zinc-800/70">
+            <input type="text" x-model="newMember.full_name" required placeholder="Full Name *" class="rounded-xl border border-zinc-800 bg-zinc-950 px-3.5 py-2 text-sm text-zinc-100 placeholder-zinc-500" />
+            <div class="grid grid-cols-2 gap-2">
+              <select x-model="newMember.department" class="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100">
+                <template x-for="d in BASE_DEPARTMENTS" :key="d"><option :value="d" x-text="d"></option></template>
+              </select>
+              <select x-model="newMember.role" class="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100">
+                <template x-for="r in ROLES" :key="r"><option :value="r" x-text="r"></option></template>
+              </select>
+            </div>
+            <div class="grid grid-cols-3 gap-2">
+              <select x-model="newMember.promo_id" required class="col-span-2 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100">
+                <option value="" disabled>Select Promo *</option>
+                <template x-for="p in promos" :key="p.id"><option :value="String(p.id)" x-text="p.name"></option></template>
+              </select>
+              <input type="text" x-model="newMember.group_name" required placeholder="Grp (G1)" class="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm font-mono text-zinc-100" />
+            </div>
+            <div class="flex items-center gap-2">
+              <input type="text" x-model="newMember.discord" placeholder="@discord (opt)" class="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm font-mono text-zinc-100" />
+              <button type="submit" :disabled="promos.length === 0" class="btn-press shrink-0 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-zinc-950 hover:bg-emerald-400 disabled:opacity-40">+ Add</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Member Directory Table -->
+        <div class="rounded-2xl border border-zinc-800/80 bg-zinc-900/60 overflow-hidden">
+          <div class="p-4 border-b border-zinc-800 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex flex-wrap items-center gap-2">
+              <input
+                type="text"
+                x-model="memberSearch"
+                placeholder="Search name, role, promo, @discord, phone..."
+                class="w-72 rounded-xl border border-zinc-800 bg-zinc-950 px-3.5 py-1.5 text-xs text-zinc-100 placeholder-zinc-500"
+              />
+              <select x-model="memberDeptFilter" class="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-xs text-zinc-200">
+                <option value="All">All Departments</option>
+                <template x-for="d in allDepartments" :key="d"><option :value="d" x-text="d"></option></template>
+              </select>
+              <select x-model="memberPromoFilter" class="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-xs text-zinc-200">
+                <option value="All">All Promos</option>
+                <template x-for="p in promos" :key="p.id"><option :value="String(p.id)" x-text="p.name"></option></template>
+              </select>
+              <select x-model="memberStatusFilter" class="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-xs text-zinc-200">
+                <option value="all">All Statuses</option>
+                <option value="active">Active Only</option>
+                <option value="inactive">Inactive Only</option>
+                <option value="exempt">Shift-Exempt Only</option>
+              </select>
+            </div>
+            <span class="text-xs font-mono text-zinc-400 tabular-nums" x-text="`${filteredDirectoryMembers.length} of ${members.length} members`"></span>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs sm:text-sm">
+              <thead class="bg-zinc-950/80 text-[11px] uppercase tracking-wider text-zinc-400 border-b border-zinc-800">
+                <tr>
+                  <th class="py-3 px-4">Member &amp; Role</th>
+                  <th class="py-3 px-4">Dept</th>
+                  <th class="py-3 px-4">Promo &amp; Group</th>
+                  <th class="py-3 px-4">Contacts</th>
+                  <th class="py-3 px-4">Flags</th>
+                  <th class="py-3 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-zinc-800/60">
+                <template x-if="filteredDirectoryMembers.length === 0">
+                  <tr><td colspan="6" class="py-10 text-center text-xs text-zinc-500">No matching members found.</td></tr>
+                </template>
+                <template x-for="m in filteredDirectoryMembers" :key="m.id">
+                  <tr class="hover:bg-zinc-900/90" :class="!m.is_active ? 'opacity-55' : ''">
+                    <td class="py-2.5 px-4">
+                      <div class="font-medium text-zinc-100" x-text="m.full_name"></div>
+                      <div class="text-[11px] text-zinc-400" x-text="m.role || 'Member'"></div>
+                    </td>
+                    <td class="py-2.5 px-4">
+                      <span class="rounded-md bg-zinc-800 px-2 py-0.5 text-xs text-zinc-200" x-text="m.department"></span>
+                    </td>
+                    <td class="py-2.5 px-4">
+                      <div class="flex items-center gap-1.5">
+                        <span class="text-zinc-200 font-medium" x-text="m.promo_name"></span>
+                        <span class="rounded bg-zinc-800 px-1.5 py-0.2 font-mono text-[11px] text-emerald-300 ring-1 ring-emerald-500/30" x-text="m.group_name"></span>
+                      </div>
+                      <div x-show="m.schedule_status" class="text-[10px] text-emerald-400/80 font-mono pt-0.5 truncate max-w-[240px]" :title="m.schedule_status" x-text="m.schedule_status"></div>
+                    </td>
+                    <td class="py-2.5 px-4 font-mono text-xs text-zinc-400 space-x-2">
+                      <span x-show="m.discord" class="text-indigo-300" x-text="m.discord"></span>
+                      <span x-show="m.phone" x-text="m.phone"></span>
+                      <span x-show="!m.discord && !m.phone" class="text-zinc-600">—</span>
+                    </td>
+                    <td class="py-2.5 px-4 space-x-1.5 whitespace-nowrap">
+                      <button
+                        @click="quickToggleMemberFlag(m, 'is_active')"
+                        class="rounded px-2 py-0.5 text-[10px] font-semibold"
+                        :class="m.is_active ? 'bg-emerald-500/15 text-emerald-300' : 'bg-zinc-800 text-zinc-400'"
+                        x-text="m.is_active ? 'Active' : 'Inactive'"
+                      ></button>
+                      <button
+                        @click="quickToggleMemberFlag(m, 'shift_exempt')"
+                        class="rounded px-2 py-0.5 text-[10px] font-semibold"
+                        :class="m.shift_exempt ? 'bg-amber-500/15 text-amber-300' : 'bg-zinc-900 text-zinc-500'"
+                        x-text="m.shift_exempt ? 'Shift-Exempt' : 'Shift-Ready'"
+                      ></button>
+                    </td>
+                    <td class="py-2.5 px-4 text-right space-x-2 whitespace-nowrap">
+                      <button @click="openEditMemberModal(m)" class="text-xs text-sky-400 hover:underline">Edit</button>
+                      <button @click="removeMember(m)" class="text-xs text-rose-400 hover:underline">Delete</button>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ===================================================================== -->
+  <!-- HEATMAP CELL DRILL-DOWN SLIDE-OVER DRAWER                             -->
+  <!-- ===================================================================== -->
+  <div x-show="drawerOpen" x-cloak class="fixed inset-0 z-40 overflow-hidden" @keydown.escape.window="drawerOpen = false">
+    <div @click="drawerOpen = false" class="absolute inset-0 bg-black/65 backdrop-blur-xs"></div>
+    <div class="fixed inset-y-0 right-0 flex max-w-full pl-10">
+      <div class="w-screen max-w-lg border-l border-zinc-800 bg-zinc-950 shadow-2xl flex flex-col">
+        <div class="px-5 py-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/80">
+          <div>
+            <h3 class="text-base font-semibold text-zinc-100" x-text="`${drawerData.day || ''} · ${drawerData.time_slot || ''}`"></h3>
+            <p class="text-xs text-zinc-400 tabular-nums" x-text="`Strict Free: ${drawerData.strict_percentage ?? 0}% · Weighted: ${drawerData.weighted_score ?? 0}%`"></p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button @click="openScheduleMeetingModal(drawerData.day, drawerData.time_slot)" class="btn-press rounded-lg bg-sky-500/20 px-2.5 py-1.5 text-xs font-medium text-sky-300 ring-1 ring-sky-500/40">+ Meeting</button>
+            <button @click="jumpFromDrawerToRadar()" class="btn-press rounded-lg bg-zinc-800 px-2.5 py-1.5 text-xs font-medium text-emerald-300 ring-1 ring-zinc-700">Radar</button>
+            <button @click="drawerOpen = false" class="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-800">&times;</button>
+          </div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-5 space-y-5">
+          <template x-for="sec in RADAR_COLUMNS" :key="sec.key">
+            <div class="space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="rounded-md px-2 py-0.5 text-xs font-semibold uppercase" :class="statusBadgeClass(sec.key)" x-text="sec.title"></span>
+                <span class="text-xs font-mono text-zinc-400 tabular-nums" x-text="`${(drawerData[sec.key] || []).length} member(s)`"></span>
+              </div>
+              <div class="space-y-1.5">
+                <template x-if="(drawerData[sec.key] || []).length === 0">
+                  <div class="text-xs text-zinc-600 italic pl-1">None</div>
+                </template>
+                <template x-for="m in (drawerData[sec.key] || [])" :key="m.id">
+                  <div class="rounded-xl border border-zinc-800/80 bg-zinc-900/70 px-3 py-2 flex items-center justify-between gap-2 text-xs">
+                    <div>
+                      <span class="font-medium text-zinc-100" x-text="m.full_name"></span>
+                      <span class="text-zinc-400 ml-1" x-text="`(${m.department} · ${m.promo_name} ${m.group_name})`"></span>
+                    </div>
+                    <span x-show="m.module_name || m.room" class="font-mono text-[11px] text-zinc-300 shrink-0" x-text="[m.module_name, m.room].filter(Boolean).join(' · ')"></span>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ===================================================================== -->
+  <!-- PROMO MEMBERS MANAGER MODAL (ASSIGN SAVED MEMBERS, QUICK-ADD, ROSTER)  -->
+  <!-- ===================================================================== -->
+  <div x-show="promoMembersModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4" @keydown.escape.window="promoMembersModalOpen = false">
+    <div @click="promoMembersModalOpen = false" class="fixed inset-0 bg-black/80 backdrop-blur-xs"></div>
+    <div class="relative z-10 w-full max-w-4xl rounded-2xl border border-zinc-800 bg-zinc-900 p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+      <!-- Modal Header -->
+      <div class="flex flex-wrap items-center justify-between gap-4 border-b border-zinc-800 pb-4">
+        <div>
+          <div class="flex items-center gap-2">
+            <h3 class="text-base sm:text-lg font-bold text-zinc-100" x-text="`Members in Promo — ${activePromoForMembers?.name || ''}`"></h3>
+            <span x-show="activePromoForMembers?.academic_year" class="rounded-md bg-zinc-800 px-2 py-0.5 text-xs font-mono text-zinc-400" x-text="activePromoForMembers?.academic_year"></span>
+          </div>
+          <p class="text-xs text-zinc-400 pt-0.5">
+            Link club members to this promo and group so their availability matches this academic timetable.
+          </p>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <!-- Sub-Tab Switcher -->
+          <div class="inline-flex rounded-xl border border-zinc-800 bg-zinc-950 p-1">
+            <button
+              type="button"
+              @click="promoMembersSubTab = 'assigned'"
+              class="rounded-lg px-3 py-1 text-xs font-medium"
+              :class="promoMembersSubTab === 'assigned' ? 'bg-zinc-800 text-white font-semibold' : 'text-zinc-400 hover:text-zinc-200'"
+            >
+              <span>Current Roster</span>
+              <span class="ml-1 font-mono text-[10px] opacity-75" x-text="`(${promoMembersList.length})`"></span>
+            </button>
+            <button
+              type="button"
+              @click="promoMembersSubTab = 'assign_saved'"
+              class="rounded-lg px-3 py-1 text-xs font-medium"
+              :class="promoMembersSubTab === 'assign_saved' ? 'bg-emerald-500/20 text-emerald-300 font-semibold ring-1 ring-emerald-500/40' : 'text-zinc-400 hover:text-zinc-200'"
+            >
+              + Assign Saved Members
+            </button>
+            <button
+              type="button"
+              @click="promoMembersSubTab = 'quick_add'"
+              class="rounded-lg px-3 py-1 text-xs font-medium"
+              :class="promoMembersSubTab === 'quick_add' ? 'bg-sky-500/20 text-sky-300 font-semibold ring-1 ring-sky-500/40' : 'text-zinc-400 hover:text-zinc-200'"
+            >
+              + Quick Add New
+            </button>
+          </div>
+          <button @click="promoMembersModalOpen = false" class="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200">&times;</button>
+        </div>
+      </div>
+
+      <!-- Quick Info Bar: Schedule Groups & Slot Summary -->
+      <div class="rounded-xl border border-zinc-800/80 bg-zinc-950/60 p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-zinc-400">Timetable Groups:</span>
+          <template x-for="g in (activePromoForMembers?.slot_groups && activePromoForMembers?.slot_groups.length ? activePromoForMembers?.slot_groups : (activePromoForMembers?.groups || []))" :key="g">
+            <span class="rounded bg-emerald-500/10 px-2 py-0.5 font-mono text-emerald-300 ring-1 ring-emerald-500/30" x-text="g"></span>
+          </template>
+          <span class="rounded bg-zinc-800 px-2 py-0.5 font-mono text-zinc-300" x-text="`${activePromoForMembers?.slot_count || 0} total class slots`"></span>
+        </div>
+        <div class="text-zinc-400 text-[11px]">
+          TD/TP slots match members by Group (<code class="text-emerald-400">G6</code>); Cours lectures apply to <code class="text-amber-400">ALL</code> groups.
+        </div>
+      </div>
+
+      <!-- SUB-TAB 1: CURRENT ASSIGNED MEMBERS IN THIS PROMO -->
+      <div x-show="promoMembersSubTab === 'assigned'" class="flex-1 overflow-hidden flex flex-col space-y-3">
+        <div class="flex items-center justify-between text-xs">
+          <span class="text-zinc-400" x-text="`${promoMembersList.length} member(s) currently assigned to ${activePromoForMembers?.name || ''}`"></span>
+          <div class="flex items-center gap-2">
+            <button @click="promoMembersSubTab = 'assign_saved'" class="text-xs text-emerald-400 hover:underline">+ Assign existing saved members</button>
+            <span class="text-zinc-600">·</span>
+            <button @click="promoMembersSubTab = 'quick_add'" class="text-xs text-sky-400 hover:underline">+ Quick add new member</button>
+          </div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto rounded-xl border border-zinc-800 bg-zinc-950/40">
+          <table class="w-full text-left text-xs">
+            <thead class="sticky top-0 bg-zinc-950 text-zinc-400 uppercase border-b border-zinc-800">
+              <tr>
+                <th class="py-2.5 px-3">Member</th>
+                <th class="py-2.5 px-3">Dept</th>
+                <th class="py-2.5 px-3">Academic Group</th>
+                <th class="py-2.5 px-3">Schedule Linkage</th>
+                <th class="py-2.5 px-3">Contacts</th>
+                <th class="py-2.5 px-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-zinc-800/60">
+              <template x-if="promoMembersList.length === 0">
+                <tr>
+                  <td colspan="6" class="py-12 text-center text-xs text-zinc-500">
+                    No members are assigned to this promo yet.<br />
+                    Click <strong class="text-emerald-400 cursor-pointer" @click="promoMembersSubTab = 'assign_saved'">"+ Assign Saved Members"</strong> to link existing club members, or <strong class="text-sky-400 cursor-pointer" @click="promoMembersSubTab = 'quick_add'">"+ Quick Add New"</strong>.
+                  </td>
+                </tr>
+              </template>
+              <template x-for="m in promoMembersList" :key="m.id">
+                <tr class="hover:bg-zinc-900/60">
+                  <td class="py-2 px-3">
+                    <div class="font-semibold text-zinc-100" x-text="m.full_name"></div>
+                    <div class="text-[11px] text-zinc-400" x-text="m.role || 'Member'"></div>
+                  </td>
+                  <td class="py-2 px-3">
+                    <span class="rounded bg-zinc-800 px-2 py-0.5 text-xs text-zinc-200" x-text="m.department"></span>
+                  </td>
+                  <td class="py-2 px-3">
+                    <div class="inline-flex items-center gap-1.5">
+                      <span class="rounded bg-emerald-500/15 px-2 py-0.5 font-mono text-xs font-bold text-emerald-300 ring-1 ring-emerald-500/35" x-text="m.group_name"></span>
+                      <button @click="updateMemberGroupPrompt(m)" title="Change group" class="text-zinc-500 hover:text-zinc-200 text-xs">✎</button>
+                    </div>
+                  </td>
+                  <td class="py-2 px-3 font-mono text-[11px]">
+                    <span
+                      class="rounded px-2 py-0.5"
+                      :class="m.matching_slots_count > 0 ? 'bg-emerald-500/10 text-emerald-300' : 'bg-amber-500/15 text-amber-300'"
+                      x-text="m.schedule_status || `${m.matching_slots_count || 0} slots`"
+                    ></span>
+                  </td>
+                  <td class="py-2 px-3 font-mono text-[11px] text-zinc-400">
+                    <span x-show="m.discord" class="text-indigo-300" x-text="m.discord"></span>
+                    <span x-show="!m.discord" class="text-zinc-600">—</span>
+                  </td>
+                  <td class="py-2 px-3 text-right space-x-2 whitespace-nowrap">
+                    <button @click="openEditMemberModal(m)" class="text-sky-400 hover:underline">Edit</button>
+                    <button @click="removeMemberFromPromo(m)" class="text-rose-400 hover:underline">Remove</button>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- SUB-TAB 2: ASSIGN EXISTING SAVED CLUB MEMBERS -->
+      <div x-show="promoMembersSubTab === 'assign_saved'" class="flex-1 overflow-hidden flex flex-col space-y-3">
+        <!-- Target Group & Action Bar -->
+        <div class="rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-3.5 flex flex-wrap items-center justify-between gap-3">
+          <div class="flex flex-wrap items-center gap-3">
+            <span class="text-xs font-semibold text-emerald-300">Assign Selected Members to Group:</span>
+            <div class="flex items-center gap-1.5">
+              <select x-model="assignTargetGroup" class="rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1 text-xs font-mono font-bold text-emerald-300">
+                <template x-for="g in (activePromoForMembers?.slot_groups && activePromoForMembers?.slot_groups.length ? activePromoForMembers?.slot_groups : (activePromoForMembers?.groups || ['G1', 'G2', 'G3', 'G4', 'G5', 'G6']))" :key="g">
+                  <option :value="g" x-text="g"></option>
+                </template>
+              </select>
+              <input
+                type="text"
+                x-model="assignTargetGroup"
+                placeholder="Or type (G6)"
+                class="w-24 rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs font-mono uppercase text-zinc-100"
+              />
+            </div>
+          </div>
+
+          <button
+            type="button"
+            @click="assignSavedMembersToPromo()"
+            :disabled="assignSavedSelectedIds.length === 0"
+            class="btn-press rounded-xl bg-emerald-500 px-4 py-2 text-xs font-bold text-zinc-950 hover:bg-emerald-400 disabled:opacity-40 disabled:cursor-not-allowed shadow-md shadow-emerald-500/20"
+            x-text="`Assign ${assignSavedSelectedIds.length} Member(s) to ${activePromoForMembers?.name || ''}`"
+          ></button>
+        </div>
+
+        <!-- Filter and Search Row -->
+        <div class="flex flex-wrap items-center justify-between gap-2.5">
+          <div class="flex flex-wrap items-center gap-2">
+            <input
+              type="text"
+              x-model="assignSavedSearch"
+              placeholder="Search saved members (name, dept, promo)..."
+              class="w-64 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-xs text-zinc-100 placeholder-zinc-500"
+            />
+            <select x-model="assignSavedDeptFilter" class="rounded-xl border border-zinc-800 bg-zinc-950 px-2.5 py-1.5 text-xs text-zinc-200">
+              <option value="All">All Departments</option>
+              <template x-for="d in allDepartments" :key="d"><option :value="d" x-text="d"></option></template>
+            </select>
+            <label class="inline-flex items-center gap-1.5 text-xs text-zinc-300 cursor-pointer">
+              <input type="checkbox" x-model="assignSavedOnlyOther" class="rounded border-zinc-700 bg-zinc-950 text-emerald-500" />
+              <span>Exclude members already in this promo</span>
+            </label>
+          </div>
+          <button
+            type="button"
+            @click="toggleSelectAllForAssign()"
+            class="btn-press rounded-lg bg-zinc-800 px-2.5 py-1 text-xs text-zinc-300 hover:text-white"
+            x-text="assignSavedSelectedIds.length === availableSavedMembersForAssign.length && availableSavedMembersForAssign.length > 0 ? 'Deselect All' : 'Select All Filtered'"
+          ></button>
+        </div>
+
+        <!-- Members Selection Table -->
+        <div class="flex-1 overflow-y-auto rounded-xl border border-zinc-800 bg-zinc-950/40">
+          <table class="w-full text-left text-xs">
+            <thead class="sticky top-0 bg-zinc-950 text-zinc-400 uppercase border-b border-zinc-800">
+              <tr>
+                <th class="py-2.5 px-3 w-10 text-center">
+                  <input
+                    type="checkbox"
+                    :checked="assignSavedSelectedIds.length > 0 && assignSavedSelectedIds.length === availableSavedMembersForAssign.length"
+                    @change="toggleSelectAllForAssign()"
+                    class="rounded border-zinc-700 bg-zinc-900 text-emerald-500"
+                  />
+                </th>
+                <th class="py-2.5 px-3">Member &amp; Role</th>
+                <th class="py-2.5 px-3">Dept</th>
+                <th class="py-2.5 px-3">Current Promo &amp; Group</th>
+                <th class="py-2.5 px-3">Contacts</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-zinc-800/60">
+              <template x-if="availableSavedMembersForAssign.length === 0">
+                <tr>
+                  <td colspan="5" class="py-10 text-center text-xs text-zinc-500">
+                    No matching saved members found.<br />
+                    You can add a new member via the <strong class="text-sky-400 cursor-pointer" @click="promoMembersSubTab = 'quick_add'">"+ Quick Add New"</strong> tab.
+                  </td>
+                </tr>
+              </template>
+              <template x-for="m in availableSavedMembersForAssign" :key="m.id">
+                <tr
+                  @click="toggleSelectMemberForAssign(m.id)"
+                  class="cursor-pointer hover:bg-zinc-900/70"
+                  :class="assignSavedSelectedIds.includes(m.id) ? 'bg-emerald-500/10' : ''"
+                >
+                  <td class="py-2.5 px-3 text-center" @click.stop>
+                    <input
+                      type="checkbox"
+                      :checked="assignSavedSelectedIds.includes(m.id)"
+                      @change="toggleSelectMemberForAssign(m.id)"
+                      class="rounded border-zinc-700 bg-zinc-900 text-emerald-500"
+                    />
+                  </td>
+                  <td class="py-2.5 px-3">
+                    <span class="font-medium text-zinc-100" x-text="m.full_name"></span>
+                    <span class="text-[11px] text-zinc-400 ml-1" x-text="`(${m.role || 'Member'})`"></span>
+                  </td>
+                  <td class="py-2.5 px-3">
+                    <span class="rounded bg-zinc-800 px-2 py-0.5 text-xs text-zinc-200" x-text="m.department"></span>
+                  </td>
+                  <td class="py-2.5 px-3 font-mono text-xs">
+                    <span class="text-zinc-300" x-text="m.promo_name"></span>
+                    <span class="ml-1 text-emerald-400" x-text="m.group_name"></span>
+                  </td>
+                  <td class="py-2.5 px-3 font-mono text-[11px] text-zinc-400">
+                    <span x-show="m.discord" class="text-indigo-300" x-text="m.discord"></span>
+                    <span x-show="!m.discord" class="text-zinc-600">—</span>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- SUB-TAB 3: QUICK ADD NEW MEMBER TO THIS PROMO -->
+      <div x-show="promoMembersSubTab === 'quick_add'" class="flex-1 overflow-y-auto">
+        <form @submit.prevent="quickAddMemberToPromo()" class="max-w-xl mx-auto rounded-2xl border border-zinc-800 bg-zinc-950/70 p-5 space-y-4">
+          <div class="border-b border-zinc-800 pb-3">
+            <h4 class="text-sm font-semibold text-zinc-100" x-text="`Add Member to ${activePromoForMembers?.name || ''}`"></h4>
+            <p class="text-xs text-zinc-400">This member will immediately be attached to this academic schedule.</p>
+          </div>
+
+          <div class="space-y-3">
+            <div>
+              <label class="block text-xs text-zinc-300 mb-1">Full Name *</label>
+              <input type="text" x-model="quickPromoMember.full_name" required placeholder="e.g. Amine Benali" class="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3.5 py-2 text-sm text-zinc-100" />
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs text-zinc-300 mb-1">Department *</label>
+                <select x-model="quickPromoMember.department" class="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100">
+                  <template x-for="d in BASE_DEPARTMENTS" :key="d"><option :value="d" x-text="d"></option></template>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs text-zinc-300 mb-1">Role</label>
+                <select x-model="quickPromoMember.role" class="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100">
+                  <template x-for="r in ROLES" :key="r"><option :value="r" x-text="r"></option></template>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs text-emerald-400 mb-1 font-semibold">Academic Group *</label>
+                <input type="text" x-model="quickPromoMember.group_name" required placeholder="G6" class="w-full rounded-xl border border-emerald-500/50 bg-zinc-900 px-3.5 py-2 text-sm font-mono uppercase text-zinc-100" />
+                <span class="text-[10px] text-zinc-500">Auto-normalizes (e.g. '6' -> 'G6')</span>
+              </div>
+              <div>
+                <label class="block text-xs text-zinc-300 mb-1">Discord Handle</label>
+                <input type="text" x-model="quickPromoMember.discord" placeholder="@amine_b" class="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3.5 py-2 text-sm font-mono text-zinc-100" />
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs text-zinc-300 mb-1">Phone (Optional)</label>
+              <input type="text" x-model="quickPromoMember.phone" placeholder="0550..." class="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3.5 py-2 text-sm font-mono text-zinc-100" />
+            </div>
+          </div>
+
+          <div class="flex justify-end gap-2 pt-2 border-t border-zinc-800">
+            <button type="button" @click="promoMembersSubTab = 'assigned'" class="btn-press rounded-xl bg-zinc-800 px-4 py-2 text-xs text-zinc-300">Cancel</button>
+            <button type="submit" class="btn-press rounded-xl bg-emerald-500 px-5 py-2 text-xs font-semibold text-zinc-950 hover:bg-emerald-400">+ Add to Promo</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- SCHEDULE MEETING MODAL                                                -->
+  <!-- ===================================================================== -->
+  <div x-show="meetingModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4" @keydown.escape.window="meetingModalOpen = false">
+    <div @click="meetingModalOpen = false" class="fixed inset-0 bg-black/70 backdrop-blur-xs"></div>
+    <form @submit.prevent="saveScheduledMeeting()" class="relative z-10 w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl space-y-4">
+      <h3 class="text-base font-semibold text-zinc-100">Schedule Club Meeting</h3>
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs text-zinc-400 mb-1">Meeting Title *</label>
+          <input type="text" x-model="meetingForm.title" required placeholder="e.g. Dev Sprint Sync / General Assembly" class="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3.5 py-2 text-sm text-zinc-100" />
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-zinc-400 mb-1">Day</label>
+            <select x-model="meetingForm.day" class="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100">
+              <template x-for="d in DAYS" :key="d"><option :value="d" x-text="d"></option></template>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-zinc-400 mb-1">Time Slot</label>
+            <select x-model="meetingForm.time_slot" class="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm font-mono text-zinc-100">
+              <template x-for="s in TIME_SLOTS" :key="s"><option :value="s" x-text="s"></option></template>
+            </select>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-zinc-400 mb-1">Department</label>
+            <select x-model="meetingForm.department" class="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100">
+              <option value="All">All Club</option>
+              <template x-for="d in allDepartments" :key="d"><option :value="d" x-text="d"></option></template>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-zinc-400 mb-1">Date (Optional)</label>
+            <input type="date" x-model="meetingForm.meeting_date" class="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100" />
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs text-zinc-400 mb-1">Room / Discord Stage</label>
+          <input type="text" x-model="meetingForm.location" placeholder="Club Local / Discord Voice #general" class="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3.5 py-2 text-sm text-zinc-100" />
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" @click="meetingModalOpen = false" class="btn-press rounded-xl bg-zinc-800 px-3.5 py-2 text-xs text-zinc-300">Cancel</button>
+        <button type="submit" class="btn-press rounded-xl bg-sky-500 px-4 py-2 text-xs font-semibold text-zinc-950">Save Meeting</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- MANUAL ADD MEMBER TO SHIFT SLOT MODAL                                 -->
+  <!-- ===================================================================== -->
+  <div x-show="addShiftMemberModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4" @keydown.escape.window="addShiftMemberModalOpen = false">
+    <div @click="addShiftMemberModalOpen = false" class="fixed inset-0 bg-black/70 backdrop-blur-xs"></div>
+    <div class="relative z-10 w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900 p-5 shadow-2xl space-y-3 max-h-[80vh] flex flex-col">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-semibold text-zinc-100">Add Available Member to Shift</h3>
+        <button @click="addShiftMemberModalOpen = false" class="text-zinc-400">&times;</button>
+      </div>
+      <div class="flex-1 overflow-y-auto space-y-1.5">
+        <template x-if="shiftSlotCandidates.length === 0">
+          <p class="py-6 text-center text-xs text-zinc-500">No additional Free or Cours members available for this slot.</p>
+        </template>
+        <template x-for="cand in shiftSlotCandidates" :key="cand.id">
+          <button
+            @click="assignCandidateToShiftSlot(cand)"
+            class="w-full rounded-xl border border-zinc-800 bg-zinc-950 p-2.5 flex items-center justify-between text-left hover:border-emerald-500/40"
+          >
+            <div>
+              <div class="text-xs font-semibold text-zinc-100" x-text="cand.full_name"></div>
+              <div class="text-[11px] text-zinc-400" x-text="`${cand.department} · ${cand.promo_name} ${cand.group_name}`"></div>
+            </div>
+            <span class="rounded px-2 py-0.5 text-[10px] font-semibold" :class="statusBadgeClass(cand.status)" x-text="cand.status === 'FREE' ? '100% Free' : `In Cours: ${cand.module_name || 'Lecture'}`"></span>
+          </button>
+        </template>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- WORKSPACE BACKUP, RESTORE & FACTORY RESET MODAL                       -->
+  <!-- ===================================================================== -->
+  <div x-show="workspaceModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4" @keydown.escape.window="workspaceModalOpen = false">
+    <div @click="workspaceModalOpen = false" class="fixed inset-0 bg-black/75 backdrop-blur-xs"></div>
+    <div class="relative z-10 w-full max-w-lg rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl space-y-5">
+      <div class="flex items-center justify-between">
+        <h3 class="text-base font-semibold text-zinc-100">Workspace Backup, Restore &amp; Data</h3>
+        <button @click="workspaceModalOpen = false" class="text-zinc-400 hover:text-zinc-200">&times;</button>
+      </div>
+
+      <div class="space-y-2.5">
+        <div class="text-xs font-semibold uppercase tracking-wider text-zinc-400">Portable Exports</div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          <a href="/api/workspace/export" class="btn-press rounded-xl border border-zinc-700 bg-zinc-950 p-3 text-center text-xs font-medium text-emerald-300 hover:bg-zinc-800">
+            Export JSON Snapshot
+          </a>
+          <a href="/api/workspace/export-db" class="btn-press rounded-xl border border-zinc-700 bg-zinc-950 p-3 text-center text-xs font-medium text-sky-300 hover:bg-zinc-800">
+            Download SQLite .db
+          </a>
+          <a href="/api/members/export-csv" class="btn-press rounded-xl border border-zinc-700 bg-zinc-950 p-3 text-center text-xs font-medium text-zinc-200 hover:bg-zinc-800">
+            Export Members CSV
+          </a>
+        </div>
+      </div>
+
+      <div class="space-y-2.5 pt-3 border-t border-zinc-800">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-semibold uppercase tracking-wider text-zinc-400">Restore JSON Snapshot</span>
+          <select x-model="restoreMode" class="rounded-lg border border-zinc-700 bg-zinc-950 px-2.5 py-1 text-xs text-zinc-200">
+            <option value="merge">Merge into current workspace</option>
+            <option value="replace">Replace entire workspace</option>
+          </select>
+        </div>
+        <label class="btn-press flex items-center justify-center rounded-xl border border-dashed border-zinc-700 bg-zinc-950 py-3 text-xs font-medium text-zinc-200 hover:border-emerald-500/50 cursor-pointer">
+          <input type="file" accept=".json,application/json" class="sr-only" @change="importWorkspaceBackup($event)" />
+          <span>Choose Workspace Backup (.json) to Restore</span>
+        </label>
+      </div>
+
+      <div class="space-y-2.5 pt-3 border-t border-zinc-800">
+        <div class="text-xs font-semibold uppercase tracking-wider text-rose-400">Danger Zone — Clear Workspace</div>
+        <div class="flex items-center gap-2">
+          <input
+            type="text"
+            x-model="resetConfirmInput"
+            placeholder="Type RESET to confirm"
+            class="flex-1 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs font-mono text-zinc-100"
+          />
+          <button
+            @click="factoryResetWorkspace()"
+            :disabled="resetConfirmInput !== 'RESET'"
+            class="btn-press rounded-xl bg-rose-500 px-3.5 py-2 text-xs font-semibold text-zinc-950 disabled:opacity-30"
+          >
+            Wipe All Data
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- SETTINGS MODAL (GEMINI API KEY + LIVE TEST)                           -->
+  <!-- ===================================================================== -->
+  <div x-show="settingsModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4" @keydown.escape.window="settingsModalOpen = false">
+    <div @click="settingsModalOpen = false" class="fixed inset-0 bg-black/70 backdrop-blur-xs"></div>
+    <div class="relative z-10 w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-base font-semibold text-zinc-100">Gemini Vision API Settings</h3>
+        <button @click="settingsModalOpen = false" class="text-zinc-400 hover:text-zinc-200">&times;</button>
+      </div>
+      <p class="text-xs text-zinc-400 leading-relaxed">
+        Powers <code class="text-zinc-200" x-text="activeGeminiModel || 'gemini-3.8-flash'"></code> PDF &amp; photo timetable extraction via the Gemini Interactions API. Stored locally in your <code class="text-zinc-200">.env</code> file.
+      </p>
+      <div x-show="maskedServerKey" class="rounded-lg bg-emerald-500/10 border border-emerald-500/25 px-3 py-2 text-xs text-emerald-300">
+        Active key in <code class="font-mono">.env</code>: <span class="font-mono" x-text="maskedServerKey"></span>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-zinc-300 mb-1.5">GEMINI_API_KEY</label>
+        <input
+          type="password"
+          x-model="apiKeyInput"
+          placeholder="AIzaSy..."
+          class="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3.5 py-2 text-sm font-mono text-zinc-100 focus:border-emerald-500 focus:outline-none"
+        />
+      </div>
+      <div class="flex items-center justify-between gap-2 pt-2">
+        <div class="flex items-center gap-2">
+          <button
+            @click="testApiKeyConnection()"
+            :disabled="testingKey"
+            class="btn-press rounded-xl bg-zinc-800 px-3.5 py-2 text-xs font-medium text-sky-300 ring-1 ring-zinc-700 hover:bg-zinc-700 disabled:opacity-50"
+            x-text="testingKey ? 'Testing...' : 'Test Connection'"
+          ></button>
+          <button
+            x-show="hasGeminiKey"
+            @click="clearApiKey()"
+            class="btn-press rounded-xl bg-zinc-950 px-3 py-2 text-xs font-medium text-rose-300 ring-1 ring-zinc-800 hover:ring-rose-500/40"
+          >Clear</button>
+        </div>
+        <div class="flex items-center gap-2">
+          <button @click="settingsModalOpen = false" class="btn-press rounded-xl bg-zinc-800 px-3.5 py-2 text-xs font-medium text-zinc-300">Cancel</button>
+          <button @click="saveApiKey()" class="btn-press rounded-xl bg-emerald-500 px-4 py-2 text-xs font-semibold text-zinc-950 hover:bg-emerald-400">Save Key</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- PROMO SAVED SLOTS INSPECTOR MODAL (VISUAL GRID + TABLE)               -->
+  <!-- ===================================================================== -->
+  <div x-show="inspectorModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4" @keydown.escape.window="inspectorModalOpen = false">
+    <div @click="inspectorModalOpen = false" class="fixed inset-0 bg-black/75 backdrop-blur-xs"></div>
+    <div class="relative z-10 w-full max-w-5xl rounded-2xl border border-zinc-800 bg-zinc-900 p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h3 class="text-base font-semibold text-zinc-100" x-text="`Schedule — ${inspectedPromo?.name || ''}`"></h3>
+          <p class="text-xs text-zinc-400">Switch between Visual Weekly Grid and Editable Row Table.</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="inline-flex rounded-xl border border-zinc-800 bg-zinc-950 p-1">
+            <button @click="inspectorViewMode = 'grid'" class="rounded-lg px-2.5 py-1 text-xs font-medium" :class="inspectorViewMode === 'grid' ? 'bg-zinc-800 text-white' : 'text-zinc-400'">Visual Grid</button>
+            <button @click="inspectorViewMode = 'table'" class="rounded-lg px-2.5 py-1 text-xs font-medium" :class="inspectorViewMode === 'table' ? 'bg-zinc-800 text-white' : 'text-zinc-400'">Edit Table</button>
+          </div>
+          <button @click="addInspectorSlot(); inspectorViewMode = 'table'" class="btn-press rounded-lg bg-emerald-500/20 px-3 py-1.5 text-xs font-medium text-emerald-300 ring-1 ring-emerald-500/40">+ Add Slot</button>
+          <button @click="inspectorModalOpen = false" class="rounded-lg px-2.5 py-1 text-zinc-400 hover:bg-zinc-800">Close</button>
+        </div>
+      </div>
+
+      <!-- Visual Grid for Saved Promo -->
+      <div x-show="inspectorViewMode === 'grid'" class="flex-1 overflow-auto rounded-xl border border-zinc-800 bg-zinc-950/70">
+        <table class="w-full min-w-[840px] border-collapse text-xs">
+          <thead>
+            <tr class="border-b border-zinc-800 bg-zinc-900">
+              <th class="py-2.5 px-3 text-left text-zinc-400 w-28">Day</th>
+              <template x-for="ts in TIME_SLOTS" :key="ts">
+                <th class="py-2.5 px-2 text-center font-mono text-zinc-300" x-text="ts"></th>
+              </template>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-zinc-800/70">
+            <template x-for="d in DAYS" :key="d">
+              <tr>
+                <td class="p-2.5 font-semibold text-zinc-200 align-top bg-zinc-900/40" x-text="d"></td>
+                <template x-for="ts in TIME_SLOTS" :key="`${d}-${ts}`">
+                  <td class="p-1.5 align-top border-l border-zinc-800/50 min-w-[125px] space-y-1">
+                    <template x-for="sl in inspectedSlots.filter(x => x.day === d && x.time_slot === ts)" :key="sl.id">
+                      <div class="rounded-lg p-1.5 text-[11px] flex items-start justify-between gap-1" :class="statusBadgeClass(sl.session_type)">
+                        <div class="min-w-0">
+                          <div class="font-bold font-mono" x-text="`${sl.session_type} · ${sl.group_target}`"></div>
+                          <div class="truncate" x-text="sl.module_name || '—'"></div>
+                          <div x-show="sl.room" class="font-mono text-[10px] opacity-75" x-text="sl.room"></div>
+                        </div>
+                        <button @click="removeExistingSlot(sl.id)" class="opacity-70 hover:opacity-100">&times;</button>
+                      </div>
+                    </template>
+                  </td>
+                </template>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Editable Table for Saved Promo -->
+      <div x-show="inspectorViewMode === 'table'" class="flex-1 overflow-y-auto rounded-xl border border-zinc-800">
+        <table class="w-full min-w-[720px] text-left text-xs">
+          <thead class="sticky top-0 bg-zinc-950 text-zinc-400 uppercase border-b border-zinc-800">
+            <tr>
+              <th class="py-2.5 px-3">Day</th>
+              <th class="py-2.5 px-3">Time Slot</th>
+              <th class="py-2.5 px-3">Type</th>
+              <th class="py-2.5 px-3">Group</th>
+              <th class="py-2.5 px-3">Module</th>
+              <th class="py-2.5 px-3">Room</th>
+              <th class="py-2.5 px-3 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-zinc-800/70 bg-zinc-950/60">
+            <template x-for="slot in inspectedSlots" :key="slot.id">
+              <tr>
+                <td class="p-2">
+                  <select x-model="slot.day" class="rounded bg-zinc-900 border border-zinc-800 px-2 py-1 text-zinc-100">
+                    <template x-for="d in DAYS" :key="d"><option :value="d" x-text="d"></option></template>
+                  </select>
+                </td>
+                <td class="p-2">
+                  <select x-model="slot.time_slot" class="rounded bg-zinc-900 border border-zinc-800 px-2 py-1 font-mono text-zinc-100">
+                    <template x-for="s in TIME_SLOTS" :key="s"><option :value="s" x-text="s"></option></template>
+                  </select>
+                </td>
+                <td class="p-2">
+                  <select x-model="slot.session_type" class="rounded bg-zinc-900 border border-zinc-800 px-2 py-1 font-semibold text-zinc-100">
+                    <option value="COURS">COURS</option>
+                    <option value="TD">TD</option>
+                    <option value="TP">TP</option>
+                  </select>
+                </td>
+                <td class="p-2"><input type="text" x-model="slot.group_target" class="w-20 rounded bg-zinc-900 border border-zinc-800 px-2 py-1 font-mono uppercase text-zinc-100" /></td>
+                <td class="p-2"><input type="text" x-model="slot.module_name" class="w-full rounded bg-zinc-900 border border-zinc-800 px-2 py-1 text-zinc-100" /></td>
+                <td class="p-2"><input type="text" x-model="slot.room" class="w-24 rounded bg-zinc-900 border border-zinc-800 px-2 py-1 text-zinc-100" /></td>
+                <td class="p-2 text-right whitespace-nowrap space-x-1.5">
+                  <button @click="saveEditedSlot(slot)" class="rounded bg-emerald-500/20 px-2 py-1 text-emerald-300">Save</button>
+                  <button @click="removeExistingSlot(slot.id)" class="rounded bg-rose-500/15 px-2 py-1 text-rose-300">Del</button>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- RICH EDIT MEMBER MODAL                                                -->
+  <!-- ===================================================================== -->
+  <div x-show="editMemberModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4" @keydown.escape.window="editMemberModalOpen = false">
+    <div @click="editMemberModalOpen = false" class="fixed inset-0 bg-black/70 backdrop-blur-xs"></div>
+    <form @submit.prevent="saveMemberEdit()" class="relative z-10 w-full max-w-lg rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl space-y-4">
+      <h3 class="text-base font-semibold text-zinc-100">Edit Member Profile</h3>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div class="sm:col-span-2">
+          <label class="block text-xs text-zinc-400 mb-1">Full Name *</label>
+          <input type="text" x-model="editingMember.full_name" required class="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100" />
+        </div>
+        <div>
+          <label class="block text-xs text-zinc-400 mb-1">Department *</label>
+          <input type="text" x-model="editingMember.department" required class="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100" />
+        </div>
+        <div>
+          <label class="block text-xs text-zinc-400 mb-1">Club Role</label>
+          <input type="text" x-model="editingMember.role" list="roleOptionsList" class="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100" />
+          <datalist id="roleOptionsList">
+            <template x-for="r in ROLES" :key="r"><option :value="r"></option></template>
+          </datalist>
+        </div>
+        <div>
+          <label class="block text-xs text-zinc-400 mb-1">Promo</label>
+          <select x-model="editingMember.promo_id" class="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100">
+            <template x-for="p in promos" :key="p.id"><option :value="String(p.id)" x-text="p.name"></option></template>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs text-zinc-400 mb-1">Group</label>
+          <input type="text" x-model="editingMember.group_name" required class="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm font-mono text-zinc-100" />
+        </div>
+        <div>
+          <label class="block text-xs text-zinc-400 mb-1">Discord Handle</label>
+          <input type="text" x-model="editingMember.discord" placeholder="@username" class="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm font-mono text-zinc-100" />
+        </div>
+        <div>
+          <label class="block text-xs text-zinc-400 mb-1">Phone</label>
+          <input type="text" x-model="editingMember.phone" placeholder="0550..." class="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm font-mono text-zinc-100" />
+        </div>
+        <div class="sm:col-span-2">
+          <label class="block text-xs text-zinc-400 mb-1">Email</label>
+          <input type="email" x-model="editingMember.email" placeholder="student@univ.dz" class="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100" />
+        </div>
+        <div class="sm:col-span-2">
+          <label class="block text-xs text-zinc-400 mb-1">Notes</label>
+          <input type="text" x-model="editingMember.notes" placeholder="Optional availability or responsibility notes" class="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100" />
+        </div>
+        <div class="sm:col-span-2 flex items-center gap-6 pt-1">
+          <label class="inline-flex items-center gap-2 text-xs text-zinc-200 cursor-pointer">
+            <input type="checkbox" x-model="editingMember.is_active" class="rounded border-zinc-700 bg-zinc-950 text-emerald-500" />
+            <span>Active Member</span>
+          </label>
+          <label class="inline-flex items-center gap-2 text-xs text-zinc-200 cursor-pointer">
+            <input type="checkbox" x-model="editingMember.shift_exempt" class="rounded border-zinc-700 bg-zinc-950 text-amber-500" />
+            <span>Exempt from automatic stand shifts</span>
+          </label>
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" @click="editMemberModalOpen = false" class="btn-press rounded-xl bg-zinc-800 px-3.5 py-2 text-xs text-zinc-300">Cancel</button>
+        <button type="submit" class="btn-press rounded-xl bg-emerald-500 px-4 py-2 text-xs font-semibold text-zinc-950">Save Changes</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- TOAST NOTIFICATIONS -->
+  <div class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm pointer-events-none">
+    <template x-for="t in toasts" :key="t.id">
+      <div
+        class="pointer-events-auto rounded-xl border px-4 py-3 text-xs font-medium shadow-xl backdrop-blur-md flex items-center justify-between gap-3"
+        :class="t.type === 'error'
+          ? 'border-rose-500/40 bg-rose-950/90 text-rose-200'
+          : 'border-zinc-700/80 bg-zinc-900/95 text-zinc-100'"
+      >
+        <span x-text="t.message"></span>
+        <button @click="dismissToast(t.id)" class="opacity-60 hover:opacity-100">&times;</button>
+      </div>
+    </template>
+  </div>
+
+  <script>
+    function clubApp() {
+      return {
+        initialized: false,
+        activeTab: 'radar',
+        setupSubTab: 'scanner',
+
+        DAYS: ['Saturday', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'],
+        TIME_SLOTS: [
+          '08:00-09:30',
+          '09:30-11:00',
+          '11:00-12:30',
+          '12:30-14:00',
+          '14:00-15:30',
+          '15:30-17:00',
+        ],
+        BASE_DEPARTMENTS: ['Dev', 'Design', 'Media', 'HR', 'Logistics'],
+        ROLES: ['Member', 'Trainee', 'Senior Member', 'Dept Lead', 'Bureau', 'Vice President', 'President'],
+        RADAR_COLUMNS: [
+          {
+            key: 'FREE',
+            title: 'FREE (100%)',
+            subtitle: 'Zero scheduled classes — weight 1.0',
+            dotClass: 'bg-emerald-400',
+            badgeClass: 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30',
+          },
+          {
+            key: 'COURS',
+            title: 'COURS (Flexible)',
+            subtitle: 'Section lecture — weight 0.5',
+            dotClass: 'bg-amber-400',
+            badgeClass: 'bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30',
+          },
+          {
+            key: 'TD',
+            title: 'TD (Mandatory)',
+            subtitle: 'Directed study group — weight 0.0',
+            dotClass: 'bg-sky-400',
+            badgeClass: 'bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/30',
+          },
+          {
+            key: 'TP',
+            title: 'TP (Lab Busy)',
+            subtitle: 'Practical lab group — weight 0.0',
+            dotClass: 'bg-rose-400',
+            badgeClass: 'bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/30',
+          },
+        ],
+
+        // Core datasets
+        promos: [],
+        members: [],
+        savedShiftPlans: [],
+        savedMeetings: [],
+
+        // Modals & Settings
+        settingsModalOpen: false,
+        workspaceModalOpen: false,
+        restoreMode: 'merge',
+        resetConfirmInput: '',
+        hasEnvKey: false,
+        maskedServerKey: null,
+        activeGeminiModel: 'gemini-3.8-flash',
+        localApiKey: '',
+        apiKeyInput: '',
+        testingKey: false,
+
+        // View 1: Live Radar
+        radarDay: 'Saturday',
+        radarSlot: '09:30-11:00',
+        radarDept: 'All',
+        radarPromoId: '',
+        radarSearch: '',
+        radarIncludeInactive: false,
+        radarSessionTab: 'ALL',
+        radarData: {
+          total_members: 0,
+          counts: { FREE: 0, COURS: 0, TD: 0, TP: 0 },
+          strict_percentage: 0,
+          weighted_score: 0,
+          FREE: [],
+          COURS: [],
+          TD: [],
+          TP: [],
+        },
+
+        // View 2: Heatmap, Drawer & Meetings
+        heatmapDept: 'All',
+        heatmapPromoId: '',
+        heatmapMode: 'weighted',
+        heatmapData: {
+          total_members: 0,
+          cells: [],
+          top_recommended_slots: [],
+          top_strict_slots: [],
+        },
+        heatmapCellMap: {},
+        drawerOpen: false,
+        drawerData: { FREE: [], COURS: [], TD: [], TP: [] },
+        meetingModalOpen: false,
+        meetingForm: {
+          title: '',
+          day: 'Tuesday',
+          time_slot: '14:00-15:30',
+          department: 'All',
+          meeting_date: '',
+          location: '',
+        },
+
+        // View 3: Shift Planner & Saved Plans
+        shiftDay: 'Sunday',
+        shiftSlots: ['09:30-11:00', '11:00-12:30', '12:30-14:00', '14:00-15:30'],
+        shiftMembersPerSlot: 3,
+        shiftDept: 'All',
+        shiftAllowCours: true,
+        shiftIncludeExempt: false,
+        shiftExcludedIds: [],
+        generatingShifts: false,
+        shiftResult: null,
+        activeSavedPlanId: null,
+        shiftPlanTitle: '',
+        shiftPlanDate: '',
+        addShiftMemberModalOpen: false,
+        targetShiftIdx: 0,
+        shiftSlotCandidates: [],
+
+        // View 4A: Batch Scanner Queue & Visual Grid
+        dragOver: false,
+        scanQueue: [],
+        queueSeq: 0,
+        selectedQueueIdx: 0,
+        scanElapsedSec: 0,
+        scanTimerId: null,
+        activeScanAbort: null,
+        stagingViewMode: 'grid',
+        inspectorModalOpen: false,
+        inspectorViewMode: 'grid',
+        inspectedPromo: null,
+        inspectedSlots: [],
+
+        // Promo Members Management Modal & Schedule Linkage
+        promoMembersModalOpen: false,
+        activePromoForMembers: null,
+        promoMembersList: [],
+        promoMembersLoading: false,
+        promoMembersSubTab: 'assigned', // 'assigned' | 'assign_saved' | 'quick_add'
+        assignSavedSearch: '',
+        assignSavedDeptFilter: 'All',
+        assignSavedOnlyOther: true,
+        assignSavedSelectedIds: [],
+        assignTargetGroup: 'G1',
+        quickPromoMember: {
+          full_name: '',
+          department: 'Dev',
+          role: 'Member',
+          group_name: 'G1',
+          discord: '',
+          phone: '',
+          email: '',
+          notes: '',
+        },
+
+        // View 4B: Rich Member Directory
+        csvDuplicateMode: 'update',
+        memberPromoFilter: 'All',
+        newMember: {
+          full_name: '',
+          department: 'Dev',
+          role: 'Member',
+          promo_id: '',
+          group_name: '',
+          discord: '',
+        },
+        memberSearch: '',
+        memberDeptFilter: 'All',
+        memberStatusFilter: 'all',
+        editMemberModalOpen: false,
+        editingMember: {
+          id: null,
+          full_name: '',
+          department: 'Dev',
+          role: 'Member',
+          promo_id: '',
+          group_name: '',
+          discord: '',
+          phone: '',
+          email: '',
+          notes: '',
+          is_active: true,
+          shift_exempt: false,
+        },
+
+        toasts: [],
+        toastSeq: 0,
+
+        get hasGeminiKey() {
+          return Boolean(this.hasEnvKey || (this.localApiKey && this.localApiKey.trim()));
+        },
+
+        get activeMemberCount() {
+          return this.members.filter((m) => m.is_active).length;
+        },
+
+        get allDepartments() {
+          const extras = this.members
+            .map((m) => m.department)
+            .filter((d) => d && !this.BASE_DEPARTMENTS.includes(d));
+          return [...this.BASE_DEPARTMENTS, ...Array.from(new Set(extras)).sort()];
+        },
+
+        get top3HeatmapSlots() {
+          const list =
+            this.heatmapMode === 'weighted'
+              ? this.heatmapData.top_recommended_slots || []
+              : this.heatmapData.top_strict_slots || [];
+          return list.slice(0, 3);
+        },
+
+        get scanningCount() {
+          return this.scanQueue.filter((q) => q.status === 'scanning' || q.status === 'queued').length;
+        },
+
+        get readyQueueCount() {
+          return this.scanQueue.filter((q) => q.status === 'ready').length;
+        },
+
+        get activeQueueItem() {
+          return this.scanQueue[this.selectedQueueIdx] || null;
+        },
+
+        get filteredDirectoryMembers() {
+          const q = this.memberSearch.trim().toLowerCase();
+          return this.members.filter((m) => {
+            if (this.memberPromoFilter !== 'All' && String(m.promo_id) !== this.memberPromoFilter) return false;
+            if (this.memberDeptFilter !== 'All' && m.department !== this.memberDeptFilter) return false;
+            if (this.memberStatusFilter === 'active' && !m.is_active) return false;
+            if (this.memberStatusFilter === 'inactive' && m.is_active) return false;
+            if (this.memberStatusFilter === 'exempt' && !m.shift_exempt) return false;
+            if (!q) return true;
+            return (
+              m.full_name.toLowerCase().includes(q) ||
+              (m.role && m.role.toLowerCase().includes(q)) ||
+              m.promo_name.toLowerCase().includes(q) ||
+              m.group_name.toLowerCase().includes(q) ||
+              m.department.toLowerCase().includes(q) ||
+              (m.discord && m.discord.toLowerCase().includes(q)) ||
+              (m.phone && m.phone.toLowerCase().includes(q))
+            );
+          });
+        },
+
+        get availableSavedMembersForAssign() {
+          if (!this.activePromoForMembers) return [];
+          const q = this.assignSavedSearch.trim().toLowerCase();
+          const targetPromoId = this.activePromoForMembers.id;
+          return this.members.filter((m) => {
+            if (this.assignSavedOnlyOther && m.promo_id === targetPromoId) return false;
+            if (this.assignSavedDeptFilter !== 'All' && m.department !== this.assignSavedDeptFilter) return false;
+            if (!q) return true;
+            return (
+              m.full_name.toLowerCase().includes(q) ||
+              (m.role && m.role.toLowerCase().includes(q)) ||
+              m.promo_name.toLowerCase().includes(q) ||
+              m.group_name.toLowerCase().includes(q) ||
+              m.department.toLowerCase().includes(q) ||
+              (m.discord && m.discord.toLowerCase().includes(q)) ||
+              (m.phone && m.phone.toLowerCase().includes(q))
+            );
+          });
+        },
+
+        async init() {
+          this.localApiKey = localStorage.getItem('club_gemini_api_key') || '';
+          this.applyCurrentClockDefaults(false);
+          await Promise.all([this.fetchSettingsStatus(), this.refreshCoreData()]);
+          this.initialized = true;
+        },
+
+        notify(message, type = 'info') {
+          const id = ++this.toastSeq;
+          this.toasts.push({ id, message, type });
+          setTimeout(() => this.dismissToast(id), 4300);
+        },
+
+        dismissToast(id) {
+          this.toasts = this.toasts.filter((t) => t.id !== id);
+        },
+
+        async copyText(val, label = 'Text') {
+          if (!val) return;
+          await navigator.clipboard.writeText(val);
+          this.notify(`${label} copied: ${val}`);
+        },
+
+        async apiFetch(url, options = {}) {
+          const res = await fetch(url, options);
+          if (!res.ok) {
+            let detail = `HTTP ${res.status}`;
+            try {
+              const errJson = await res.json();
+              detail = errJson.detail || JSON.stringify(errJson);
+            } catch (_) {}
+            throw new Error(detail);
+          }
+          return res.json();
+        },
+
+        async refreshCoreData() {
+          const [promos, members, shiftPlans, meetings] = await Promise.all([
+            this.apiFetch('/api/promos'),
+            this.apiFetch('/api/members'),
+            this.apiFetch('/api/shift-plans'),
+            this.apiFetch('/api/meetings'),
+          ]);
+          this.promos = promos;
+          this.members = members;
+          this.savedShiftPlans = shiftPlans;
+          this.savedMeetings = meetings;
+          if (!this.newMember.promo_id && this.promos.length > 0) {
+            this.newMember.promo_id = String(this.promos[0].id);
+          }
+          await Promise.all([this.fetchRadarBreakdown(), this.fetchHeatmap()]);
+        },
+
+        switchTab(tab) {
+          this.activeTab = tab;
+          if (tab === 'radar') this.fetchRadarBreakdown();
+          if (tab === 'heatmap') this.fetchHeatmap();
+        },
+
+        statusBadgeClass(status) {
+          switch (status) {
+            case 'FREE':
+              return 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/35';
+            case 'COURS':
+              return 'bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/35';
+            case 'TD':
+              return 'bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/35';
+            case 'TP':
+              return 'bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/35';
+            default:
+              return 'bg-zinc-800 text-zinc-300';
+          }
+        },
+
+        // -----------------------------------------------------------------
+        // Settings & Workspace Backup / Restore
+        // -----------------------------------------------------------------
+        async fetchSettingsStatus() {
+          try {
+            const st = await this.apiFetch('/api/settings/status');
+            this.hasEnvKey = Boolean(st.has_env_key);
+            this.maskedServerKey = st.masked_key;
+            this.activeGeminiModel = st.model || 'gemini-3.8-flash';
+          } catch (_) {}
+        },
+
+        openSettingsModal() {
+          this.apiKeyInput = this.localApiKey || '';
+          this.settingsModalOpen = true;
+        },
+
+        async testApiKeyConnection() {
+          this.testingKey = true;
+          try {
+            const candidate = (this.apiKeyInput || this.localApiKey || '').trim();
+            const res = await this.apiFetch('/api/settings/test-key', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ api_key: candidate }),
+            });
+            this.notify(res.message || 'Gemini connection verified!');
+          } catch (err) {
+            this.notify(err.message, 'error');
+          } finally {
+            this.testingKey = false;
+          }
+        },
+
+        async saveApiKey() {
+          const trimmed = (this.apiKeyInput || '').trim();
+          if (!trimmed && this.hasEnvKey) {
+            this.settingsModalOpen = false;
+            this.notify('Keeping active server .env GEMINI_API_KEY.');
+            return;
+          }
+          if (!trimmed) {
+            this.notify('Paste a GEMINI_API_KEY first, or click Clear to remove an existing key.', 'error');
+            return;
+          }
+          this.localApiKey = trimmed;
+          localStorage.setItem('club_gemini_api_key', trimmed);
+          try {
+            const st = await this.apiFetch('/api/settings/api-key', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ api_key: trimmed }),
+            });
+            this.hasEnvKey = Boolean(st.has_env_key);
+            this.maskedServerKey = st.masked_key;
+            this.settingsModalOpen = false;
+            this.notify('GEMINI_API_KEY saved locally.');
+          } catch (err) {
+            this.notify(`Failed to save key: ${err.message}`, 'error');
+          }
+        },
+
+        async clearApiKey() {
+          if (!confirm('Clear the stored GEMINI_API_KEY from browser & .env?')) return;
+          this.apiKeyInput = '';
+          this.localApiKey = '';
+          localStorage.removeItem('club_gemini_api_key');
+          try {
+            const st = await this.apiFetch('/api/settings/api-key', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ api_key: '' }),
+            });
+            this.hasEnvKey = Boolean(st.has_env_key);
+            this.maskedServerKey = st.masked_key;
+            this.settingsModalOpen = false;
+            this.notify('API key cleared.');
+          } catch (err) {
+            this.notify(`Failed to clear key: ${err.message}`, 'error');
+          }
+        },
+
+        async importWorkspaceBackup(e) {
+          const file = e.target?.files?.[0];
+          if (!file) return;
+          e.target.value = '';
+          if (
+            this.restoreMode === 'replace' &&
+            !confirm('Replace ALL current workspace data with this backup file?')
+          ) {
+            return;
+          }
+          try {
+            const fd = new FormData();
+            fd.append('file', file);
+            const res = await this.apiFetch(`/api/workspace/import?mode=${this.restoreMode}`, {
+              method: 'POST',
+              body: fd,
+            });
+            this.workspaceModalOpen = false;
+            await this.refreshCoreData();
+            this.notify(
+              `Restored ${res.promos_processed} promos, ${res.members_processed} members, and ${res.shift_plans_imported} shift plans!`
+            );
+          } catch (err) {
+            this.notify(`Restore failed: ${err.message}`, 'error');
+          }
+        },
+
+        async factoryResetWorkspace() {
+          if (this.resetConfirmInput !== 'RESET') return;
+          try {
+            await this.apiFetch('/api/workspace/reset?confirm=RESET', { method: 'DELETE' });
+            this.resetConfirmInput = '';
+            this.shiftResult = null;
+            this.activeSavedPlanId = null;
+            this.scanQueue = [];
+            this.workspaceModalOpen = false;
+            await this.refreshCoreData();
+            this.notify('Workspace wiped completely clean.');
+          } catch (err) {
+            this.notify(`Reset error: ${err.message}`, 'error');
+          }
+        },
+
+        // -----------------------------------------------------------------
+        // View 1: Live Radar
+        // -----------------------------------------------------------------
+        applyCurrentClockDefaults(showToast = true) {
+          const now = new Date();
+          const jsDay = now.getDay();
+          const dayMap = { 6: 'Saturday', 0: 'Sunday', 1: 'Monday', 2: 'Tuesday', 3: 'Wednesday', 4: 'Thursday', 5: 'Saturday' };
+          this.radarDay = dayMap[jsDay] || 'Saturday';
+
+          const mins = now.getHours() * 60 + now.getMinutes();
+          const ranges = [
+            { slot: '08:00-09:30', start: 480, end: 570 },
+            { slot: '09:30-11:00', start: 570, end: 660 },
+            { slot: '11:00-12:30', start: 660, end: 750 },
+            { slot: '12:30-14:00', start: 750, end: 840 },
+            { slot: '14:00-15:30', start: 840, end: 930 },
+            { slot: '15:30-17:00', start: 930, end: 1020 },
+          ];
+          let note = '';
+          const active = ranges.find((r) => mins >= r.start && mins < r.end);
+          if (active) {
+            this.radarSlot = active.slot;
+            note = `Synced to live slot: ${this.radarDay} ${this.radarSlot}`;
+          } else if (mins < 480) {
+            this.radarSlot = '08:00-09:30';
+            note = `Before 08:00 — showing ${this.radarDay} 08:00-09:30`;
+          } else {
+            this.radarSlot = '15:30-17:00';
+            note = `After 17:00 — showing ${this.radarDay} 15:30-17:00`;
+          }
+          if (jsDay === 5) note = `Friday — previewing Saturday ${this.radarSlot}`;
+          if (showToast) this.notify(note);
+        },
+
+        async detectRightNow() {
+          this.applyCurrentClockDefaults(true);
+          await this.fetchRadarBreakdown();
+        },
+
+        async fetchRadarBreakdown() {
+          try {
+            const params = new URLSearchParams({
+              day: this.radarDay,
+              time_slot: this.radarSlot,
+              include_inactive: String(Boolean(this.radarIncludeInactive)),
+            });
+            if (this.radarDept && this.radarDept !== 'All') params.set('department', this.radarDept);
+            if (this.radarPromoId) params.set('promo_id', this.radarPromoId);
+            this.radarData = await this.apiFetch(`/api/analysis/slot?${params.toString()}`);
+          } catch (err) {
+            this.notify(`Radar error: ${err.message}`, 'error');
+          }
+        },
+
+        filterRadarBucket(statusKey) {
+          const list = this.radarData[statusKey] || [];
+          const q = this.radarSearch.trim().toLowerCase();
+          if (!q) return list;
+          return list.filter(
+            (m) =>
+              m.full_name.toLowerCase().includes(q) ||
+              (m.role && m.role.toLowerCase().includes(q)) ||
+              m.group_name.toLowerCase().includes(q) ||
+              m.promo_name.toLowerCase().includes(q) ||
+              (m.discord && m.discord.toLowerCase().includes(q)) ||
+              (m.module_name && m.module_name.toLowerCase().includes(q)) ||
+              (m.room && m.room.toLowerCase().includes(q))
+          );
+        },
+
+        // -----------------------------------------------------------------
+        // View 2: Heatmap, Slide-Over & Scheduled Meetings
+        // -----------------------------------------------------------------
+        async fetchHeatmap() {
+          try {
+            const params = new URLSearchParams();
+            if (this.heatmapDept && this.heatmapDept !== 'All') params.set('department', this.heatmapDept);
+            if (this.heatmapPromoId) params.set('promo_id', this.heatmapPromoId);
+            const qs = params.toString() ? `?${params.toString()}` : '';
+            const hm = await this.apiFetch(`/api/analysis/heatmap${qs}`);
+            this.heatmapData = hm;
+            const map = {};
+            for (const c of hm.cells || []) map[`${c.day}|${c.time_slot}`] = c;
+            this.heatmapCellMap = map;
+          } catch (err) {
+            this.notify(`Heatmap error: ${err.message}`, 'error');
+          }
+        },
+
+        getHeatmapCell(day, timeSlot) {
+          return this.heatmapCellMap[`${day}|${timeSlot}`] || null;
+        },
+
+        cellDisplayScore(cell) {
+          if (!cell) return 0;
+          return this.heatmapMode === 'weighted' ? cell.weighted_score : cell.strict_percentage;
+        },
+
+        heatmapCellClasses(cell) {
+          if (!cell || cell.total_members === 0) return 'bg-zinc-950/60 text-zinc-500 ring-zinc-800/70';
+          const score = this.cellDisplayScore(cell);
+          if (score >= 80) return 'bg-emerald-500/20 text-emerald-200 ring-emerald-500/40 hover:bg-emerald-500/30';
+          if (score >= 60) return 'bg-emerald-500/10 text-emerald-300 ring-emerald-500/25 hover:bg-emerald-500/20';
+          if (score >= 40) return 'bg-amber-500/15 text-amber-200 ring-amber-500/30 hover:bg-amber-500/25';
+          if (score >= 20) return 'bg-orange-500/15 text-orange-300 ring-orange-500/25 hover:bg-orange-500/25';
+          return 'bg-rose-500/15 text-rose-300 ring-rose-500/30 hover:bg-rose-500/25';
+        },
+
+        async openCellDrawer(day, timeSlot, deptOverride = null) {
+          try {
+            const dept = deptOverride !== null ? deptOverride : this.heatmapDept;
+            const params = new URLSearchParams({ day, time_slot: timeSlot });
+            if (dept && dept !== 'All') params.set('department', dept);
+            if (this.heatmapPromoId && deptOverride === null) params.set('promo_id', this.heatmapPromoId);
+            this.drawerData = await this.apiFetch(`/api/analysis/slot?${params.toString()}`);
+            this.drawerOpen = true;
+          } catch (err) {
+            this.notify(`Inspect error: ${err.message}`, 'error');
+          }
+        },
+
+        async jumpFromDrawerToRadar() {
+          this.radarDay = this.drawerData.day;
+          this.radarSlot = this.drawerData.time_slot;
+          this.radarDept = this.heatmapDept;
+          this.radarPromoId = this.heatmapPromoId;
+          this.drawerOpen = false;
+          this.activeTab = 'radar';
+          await this.fetchRadarBreakdown();
+        },
+
+        openScheduleMeetingModal(day, timeSlot) {
+          this.meetingForm = {
+            title: this.heatmapDept !== 'All' ? `${this.heatmapDept} Dept Meeting` : 'Club General Sync',
+            day: day || 'Tuesday',
+            time_slot: timeSlot || '14:00-15:30',
+            department: this.heatmapDept || 'All',
+            meeting_date: '',
+            location: '',
+          };
+          this.meetingModalOpen = true;
+        },
+
+        async saveScheduledMeeting() {
+          try {
+            await this.apiFetch('/api/meetings', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                title: this.meetingForm.title,
+                day: this.meetingForm.day,
+                time_slot: this.meetingForm.time_slot,
+                department: this.meetingForm.department === 'All' ? null : this.meetingForm.department,
+                meeting_date: this.meetingForm.meeting_date || null,
+                location: this.meetingForm.location || null,
+              }),
+            });
+            this.meetingModalOpen = false;
+            this.drawerOpen = false;
+            this.savedMeetings = await this.apiFetch('/api/meetings');
+            this.notify('Meeting saved!');
+          } catch (err) {
+            this.notify(`Could not save meeting: ${err.message}`, 'error');
+          }
+        },
+
+        async inspectSavedMeeting(mt) {
+          await this.openCellDrawer(mt.day, mt.time_slot, mt.department || 'All');
+        },
+
+        async copyMeetingAnnouncement(mt) {
+          const msg = [
+            `📅 **${mt.title}** (${mt.department || 'All Club'})`,
+            `🕒 **When:** ${mt.day} · \`${mt.time_slot}\`${mt.meeting_date ? ` (${mt.meeting_date})` : ''}`,
+            mt.location ? `📍 **Where:** ${mt.location}` : null,
+            `✅ **Availability:** ${mt.expected_free_count} Free + ${mt.expected_cours_count} in Cours (${mt.weighted_score}% score)`,
+          ]
+            .filter(Boolean)
+            .join('\n');
+          await navigator.clipboard.writeText(msg);
+          this.notify('Discord meeting announcement copied!');
+        },
+
+        async deleteSavedMeeting(mt) {
+          if (!confirm(`Delete scheduled meeting "${mt.title}"?`)) return;
+          try {
+            await this.apiFetch(`/api/meetings/${mt.id}`, { method: 'DELETE' });
+            this.savedMeetings = await this.apiFetch('/api/meetings');
+            this.notify('Meeting deleted.');
+          } catch (err) {
+            this.notify(`Delete failed: ${err.message}`, 'error');
+          }
+        },
+
+        // -----------------------------------------------------------------
+        // View 3: Shift Planner, Manual Edits & Persisted Plans
+        // -----------------------------------------------------------------
+        toggleShiftExcludeMember(memberId) {
+          if (this.shiftExcludedIds.includes(memberId)) {
+            this.shiftExcludedIds = this.shiftExcludedIds.filter((id) => id !== memberId);
+          } else {
+            this.shiftExcludedIds.push(memberId);
+          }
+        },
+
+        async generateShifts() {
+          if (this.shiftSlots.length === 0) {
+            this.notify('Select at least one slot.', 'error');
+            return;
+          }
+          this.generatingShifts = true;
+          try {
+            this.shiftResult = await this.apiFetch('/api/analysis/shifts', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                day: this.shiftDay,
+                time_slots: this.shiftSlots,
+                members_per_shift: Number(this.shiftMembersPerSlot) || 3,
+                department: this.shiftDept === 'All' ? null : this.shiftDept,
+                allow_cours_fallback: Boolean(this.shiftAllowCours),
+                include_shift_exempt: Boolean(this.shiftIncludeExempt),
+                excluded_member_ids: this.shiftExcludedIds,
+              }),
+            });
+            this.activeSavedPlanId = null;
+            if (!this.shiftPlanTitle) {
+              this.shiftPlanTitle = `${this.shiftResult.day} Stand Rotation`;
+            }
+            this.notify(`Generated ${this.shiftResult.shifts.length} shift slot(s).`);
+          } catch (err) {
+            this.notify(`Shift generation failed: ${err.message}`, 'error');
+          } finally {
+            this.generatingShifts = false;
+          }
+        },
+
+        recomputeShiftSummaries() {
+          if (!this.shiftResult) return;
+          const byId = {};
+          let unfilled = 0;
+
+          for (const sh of this.shiftResult.shifts) {
+            sh.filled_count = sh.assigned_members.length;
+            sh.shortfall = Math.max(0, sh.requested_count - sh.filled_count);
+            unfilled += sh.shortfall;
+
+            for (const am of sh.assigned_members) {
+              if (!byId[am.id]) {
+                byId[am.id] = {
+                  id: am.id,
+                  full_name: am.full_name,
+                  department: am.department,
+                  role: am.role || 'Member',
+                  promo_name: am.promo_name,
+                  group_name: am.group_name,
+                  discord: am.discord || null,
+                  phone: am.phone || null,
+                  total_shifts: 0,
+                  free_shifts: 0,
+                  cours_shifts: 0,
+                  assigned_slots: [],
+                };
+              }
+              byId[am.id].total_shifts += 1;
+              if (am.availability_status === 'FREE') byId[am.id].free_shifts += 1;
+              else byId[am.id].cours_shifts += 1;
+              byId[am.id].assigned_slots.push(sh.time_slot);
+              am.shifts_assigned_today = byId[am.id].total_shifts;
+            }
+          }
+
+          this.shiftResult.unfilled_spots_total = unfilled;
+          this.shiftResult.member_summaries = Object.values(byId).sort(
+            (a, b) => b.total_shifts - a.total_shifts || a.full_name.localeCompare(b.full_name)
+          );
+        },
+
+        removeMemberFromShiftSlot(shIdx, mIdx) {
+          this.shiftResult.shifts[shIdx].assigned_members.splice(mIdx, 1);
+          this.recomputeShiftSummaries();
+        },
+
+        async openAddShiftMemberModal(shIdx) {
+          this.targetShiftIdx = shIdx;
+          const sh = this.shiftResult.shifts[shIdx];
+          const alreadyIds = new Set(sh.assigned_members.map((m) => m.id));
+          try {
+            const params = new URLSearchParams({
+              day: this.shiftResult.day,
+              time_slot: sh.time_slot,
+            });
+            if (this.shiftResult.department) params.set('department', this.shiftResult.department);
+            const bd = await this.apiFetch(`/api/analysis/slot?${params.toString()}`);
+            this.shiftSlotCandidates = [...bd.FREE, ...bd.COURS].filter((m) => !alreadyIds.has(m.id));
+            this.addShiftMemberModalOpen = true;
+          } catch (err) {
+            this.notify(`Could not fetch available candidates: ${err.message}`, 'error');
+          }
+        },
+
+        assignCandidateToShiftSlot(cand) {
+          const sh = this.shiftResult.shifts[this.targetShiftIdx];
+          sh.assigned_members.push({
+            id: cand.id,
+            full_name: cand.full_name,
+            department: cand.department,
+            role: cand.role || 'Member',
+            promo_id: cand.promo_id,
+            promo_name: cand.promo_name,
+            group_name: cand.group_name,
+            discord: cand.discord,
+            phone: cand.phone,
+            availability_status: cand.status === 'FREE' ? 'FREE' : 'COURS',
+            status_note: cand.status === 'FREE' ? '100% Free' : `In Cours: ${cand.module_name || 'Lecture'}`,
+            module_name: cand.module_name,
+            room: cand.room,
+            shifts_assigned_today: 1,
+          });
+          this.recomputeShiftSummaries();
+          this.addShiftMemberModalOpen = false;
+        },
+
+        async saveShiftPlan(updateExisting = false) {
+          if (!this.shiftResult) return;
+          const title = (this.shiftPlanTitle || '').trim() || `${this.shiftResult.day} Stand Shifts`;
+          try {
+            if (updateExisting && this.activeSavedPlanId) {
+              const upd = await this.apiFetch(`/api/shift-plans/${this.activeSavedPlanId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  title,
+                  event_date: this.shiftPlanDate || null,
+                  schedule: this.shiftResult,
+                }),
+              });
+              this.savedShiftPlans = await this.apiFetch('/api/shift-plans');
+              this.notify(`Updated shift plan "${upd.title}".`);
+            } else {
+              const created = await this.apiFetch('/api/shift-plans', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  title,
+                  event_date: this.shiftPlanDate || null,
+                  schedule: this.shiftResult,
+                }),
+              });
+              this.activeSavedPlanId = created.id;
+              this.savedShiftPlans = await this.apiFetch('/api/shift-plans');
+              this.notify(`Saved shift plan "${created.title}" to database!`);
+            }
+          } catch (err) {
+            this.notify(`Save plan failed: ${err.message}`, 'error');
+          }
+        },
+
+        loadSavedShiftPlan(sp) {
+          this.activeSavedPlanId = sp.id;
+          this.shiftPlanTitle = sp.title;
+          this.shiftPlanDate = sp.event_date || '';
+          this.shiftDay = sp.day;
+          this.shiftDept = sp.department || 'All';
+          this.shiftMembersPerSlot = sp.members_per_shift;
+          this.shiftAllowCours = sp.allow_cours_fallback;
+          this.shiftResult = JSON.parse(JSON.stringify(sp.schedule));
+          this.shiftSlots = this.shiftResult.shifts.map((s) => s.time_slot);
+          this.notify(`Loaded saved plan "${sp.title}".`);
+        },
+
+        async deleteSavedShiftPlan(sp) {
+          if (!confirm(`Delete saved shift plan "${sp.title}"?`)) return;
+          try {
+            await this.apiFetch(`/api/shift-plans/${sp.id}`, { method: 'DELETE' });
+            if (this.activeSavedPlanId === sp.id) this.activeSavedPlanId = null;
+            this.savedShiftPlans = await this.apiFetch('/api/shift-plans');
+            this.notify(`Deleted "${sp.title}".`);
+          } catch (err) {
+            this.notify(`Delete failed: ${err.message}`, 'error');
+          }
+        },
+
+        async copyShiftsMarkdown() {
+          if (!this.shiftResult) return;
+          const headerTitle = this.shiftPlanTitle || `${this.shiftResult.day} Stand Schedule`;
+          const lines = [
+            `### ${headerTitle}${this.shiftPlanDate ? ` (${this.shiftPlanDate})` : ''}`,
+            '',
+            '| Time Slot | Assigned Members | Status |',
+            '| :--- | :--- | :--- |',
+          ];
+          for (const sh of this.shiftResult.shifts) {
+            const names =
+              sh.assigned_members
+                .map((m) => `**${m.full_name}**${m.discord ? ` (${m.discord})` : ` (${m.department})`}`)
+                .join(', ') || '_Unfilled_';
+            const notes = sh.assigned_members.map((m) => m.status_note).join(', ') || '-';
+            lines.push(`| \`${sh.time_slot}\` | ${names} | ${notes} |`);
+          }
+          lines.push(
+            '',
+            '**Shifts per Member:** ' +
+              this.shiftResult.member_summaries.map((s) => `${s.full_name}: ${s.total_shifts}`).join(' · ')
+          );
+          await navigator.clipboard.writeText(lines.join('\n'));
+          this.notify('Discord Markdown copied to clipboard!');
+        },
+
+        exportShiftsCSV() {
+          if (!this.shiftResult) return;
+          const rows = [['Plan', 'Day', 'Time Slot', 'Member Name', 'Role', 'Department', 'Promo', 'Group', 'Discord', 'Phone', 'Status Note']];
+          for (const sh of this.shiftResult.shifts) {
+            for (const m of sh.assigned_members) {
+              rows.push([
+                this.shiftPlanTitle || 'Shift Schedule',
+                this.shiftResult.day,
+                sh.time_slot,
+                m.full_name,
+                m.role || 'Member',
+                m.department,
+                m.promo_name,
+                m.group_name,
+                m.discord || '',
+                m.phone || '',
+                m.status_note,
+              ]);
+            }
+          }
+          const csvContent = '\uFEFF' + rows.map((r) => r.map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+          const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `club_shifts_${this.shiftResult.day.toLowerCase()}.csv`;
+          a.click();
+          URL.revokeObjectURL(url);
+        },
+
+        // -----------------------------------------------------------------
+        // View 4A: Batch AI Timetable Scanner & Visual Weekly Grid
+        // -----------------------------------------------------------------
+        handleFileDrop(e) {
+          this.dragOver = false;
+          const files = Array.from(e.dataTransfer?.files || []);
+          if (files.length) this.enqueueFilesForScan(files);
+        },
+
+        handleFileSelect(e) {
+          const files = Array.from(e.target?.files || []);
+          if (files.length) this.enqueueFilesForScan(files);
+          e.target.value = '';
+        },
+
+        updateQueueItem(uid, patch) {
+          const idx = this.scanQueue.findIndex((q) => q.uid === uid);
+          if (idx === -1) return null;
+          const next = { ...this.scanQueue[idx], ...patch };
+          this.scanQueue.splice(idx, 1, next);
+          return next;
+        },
+
+        startScanTimer() {
+          this.stopScanTimer();
+          this.scanElapsedSec = 0;
+          this.scanTimerId = setInterval(() => {
+            this.scanElapsedSec += 1;
+          }, 1000);
+        },
+
+        stopScanTimer() {
+          if (this.scanTimerId) {
+            clearInterval(this.scanTimerId);
+            this.scanTimerId = null;
+          }
+        },
+
+        cancelActiveScan() {
+          if (this.activeScanAbort) {
+            this.activeScanAbort.abort('user_cancelled');
+            this.activeScanAbort = null;
+          }
+          this.stopScanTimer();
+          this.scanQueue = this.scanQueue.map((q) =>
+            q.status === 'scanning' || q.status === 'queued'
+              ? { ...q, status: 'error', error: `Scan cancelled for ${q.filename}.` }
+              : q
+          );
+          this.notify('Active scan cancelled.');
+        },
+
+        async enqueueFilesForScan(files) {
+          if (!this.hasGeminiKey) {
+            this.openSettingsModal();
+            this.notify('Configure your GEMINI_API_KEY first to scan timetables.', 'error');
+            return;
+          }
+
+          // Keep native File objects outside Alpine's reactive state proxy
+          const jobs = files.map((file) => ({
+            uid: ++this.queueSeq,
+            filename: file.name,
+            file,
+          }));
+
+          const newPlaceholders = jobs.map((job) => ({
+            uid: job.uid,
+            filename: job.filename,
+            status: 'queued',
+            promo_name: job.filename.replace(/\.[^.]+$/, ''),
+            academic_year: '',
+            saveMode: 'merge',
+            slots: [],
+            error: null,
+          }));
+
+          const startIdx = this.scanQueue.length;
+          this.scanQueue.push(...newPlaceholders);
+          this.selectedQueueIdx = startIdx;
+
+          for (const job of jobs) {
+            const existing = this.scanQueue.find((q) => q.uid === job.uid);
+            if (!existing || existing.status === 'error') continue;
+
+            this.updateQueueItem(job.uid, { status: 'scanning', error: null });
+            this.startScanTimer();
+
+            const controller = new AbortController();
+            this.activeScanAbort = controller;
+            const safetyTimeout = setTimeout(() => controller.abort('timeout'), 75000);
+
+            try {
+              const fd = new FormData();
+              fd.append('file', job.file);
+              const headers = {};
+              if (this.localApiKey && this.localApiKey.trim()) {
+                headers['X-Gemini-Api-Key'] = this.localApiKey.trim();
+              }
+              const res = await this.apiFetch('/api/promos/scan', {
+                method: 'POST',
+                headers,
+                body: fd,
+                signal: controller.signal,
+              });
+
+              const tables =
+                res.timetables && res.timetables.length > 0
+                  ? res.timetables
+                  : [{ promo_name: res.promo_name, slots: res.slots || [] }];
+
+              const firstPromo = tables[0].promo_name || existing.promo_name;
+              const firstSlots = (tables[0].slots || []).map((s) => ({ ...s }));
+
+              this.updateQueueItem(job.uid, {
+                promo_name: firstPromo,
+                slots: firstSlots,
+                status: 'ready',
+                error: null,
+              });
+
+              // Any extra sections from a multi-page PDF become additional ready queue items!
+              if (tables.length > 1) {
+                const extras = tables.slice(1).map((tt) => ({
+                  uid: ++this.queueSeq,
+                  filename: job.filename,
+                  status: 'ready',
+                  promo_name: tt.promo_name,
+                  academic_year: '',
+                  saveMode: 'merge',
+                  slots: (tt.slots || []).map((s) => ({ ...s })),
+                  error: null,
+                }));
+                const pos = this.scanQueue.findIndex((q) => q.uid === job.uid);
+                if (pos !== -1) {
+                  this.scanQueue.splice(pos + 1, 0, ...extras);
+                }
+                this.notify(`Extracted ${tables.length} sections from ${job.filename}!`);
+              } else {
+                this.notify(`Extracted ${firstSlots.length} slots for "${firstPromo}".`);
+              }
+            } catch (err) {
+              const abortedReason = controller.signal.aborted ? controller.signal.reason : null;
+              if (abortedReason === 'user_cancelled') {
+                this.updateQueueItem(job.uid, {
+                  status: 'error',
+                  error: `Scan cancelled for ${job.filename}.`,
+                });
+              } else if (abortedReason === 'timeout' || err.name === 'AbortError') {
+                const msg = `Scan timed out after 75s for ${job.filename}. Please retry in a moment.`;
+                this.updateQueueItem(job.uid, { status: 'error', error: msg });
+                this.notify(msg, 'error');
+              } else {
+                const msg = `Failed to scan ${job.filename}: ${err.message}`;
+                this.updateQueueItem(job.uid, { status: 'error', error: msg });
+                this.notify(msg, 'error');
+              }
+            } finally {
+              clearTimeout(safetyTimeout);
+              if (this.activeScanAbort === controller) {
+                this.activeScanAbort = null;
+              }
+              this.stopScanTimer();
+            }
+          }
+        },
+
+        addManualQueueItem() {
+          this.scanQueue.push({
+            uid: ++this.queueSeq,
+            filename: 'Manual Promo',
+            status: 'ready',
+            promo_name: '',
+            academic_year: '',
+            saveMode: 'merge',
+            slots: [
+              {
+                day: 'Saturday',
+                time_slot: '08:00-09:30',
+                session_type: 'COURS',
+                group_target: 'ALL',
+                module_name: '',
+                room: '',
+              },
+            ],
+            error: null,
+          });
+          this.selectedQueueIdx = this.scanQueue.length - 1;
+          this.stagingViewMode = 'table';
+        },
+
+        getStagingCellSlots(day, timeSlot) {
+          const item = this.activeQueueItem;
+          if (!item || !item.slots) return [];
+          const out = [];
+          item.slots.forEach((slot, idx) => {
+            if (slot.day === day && slot.time_slot === timeSlot) {
+              out.push({ slot, idx });
+            }
+          });
+          return out;
+        },
+
+        addSlotToActiveQueue(day = 'Saturday', timeSlot = '08:00-09:30') {
+          if (!this.activeQueueItem) return;
+          this.activeQueueItem.slots.push({
+            day,
+            time_slot: timeSlot,
+            session_type: 'TD',
+            group_target: 'G1',
+            module_name: '',
+            room: '',
+          });
+        },
+
+        removeQueueItem(idx) {
+          this.scanQueue.splice(idx, 1);
+          if (this.selectedQueueIdx >= this.scanQueue.length) {
+            this.selectedQueueIdx = Math.max(0, this.scanQueue.length - 1);
+          }
+        },
+
+        clearFinishedQueue() {
+          if (this.activeScanAbort) {
+            this.activeScanAbort.abort('user_cancelled');
+            this.activeScanAbort = null;
+          }
+          this.stopScanTimer();
+          this.scanQueue = [];
+          this.selectedQueueIdx = 0;
+        },
+
+        async saveQueueItem(item) {
+          if (!item.promo_name || !item.promo_name.trim()) {
+            this.notify('Enter a Promo Name before saving.', 'error');
+            return false;
+          }
+          const mode = item.saveMode || 'merge';
+          try {
+            const saved = await this.apiFetch('/api/promos', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name: item.promo_name.trim(),
+                academic_year: item.academic_year || null,
+                schedule_slots: item.slots,
+                merge_slots: mode === 'merge',
+                overwrite_if_exists: mode === 'overwrite',
+              }),
+            });
+            this.updateQueueItem(item.uid, { status: 'saved', promo_id: saved.id });
+            await this.refreshCoreData();
+            this.notify(`Saved "${saved.name}" (${saved.slot_count} total slots).`);
+            return true;
+          } catch (err) {
+            this.notify(`Save failed: ${err.message}`, 'error');
+            return false;
+          }
+        },
+
+        async saveAllReadyQueueItems() {
+          const readyItems = this.scanQueue.filter((q) => q.status === 'ready');
+          let count = 0;
+          for (const item of readyItems) {
+            if (!item.promo_name?.trim()) continue;
+            const ok = await this.saveQueueItem(item);
+            if (ok) count += 1;
+          }
+          this.notify(`Saved ${count} promo schedule(s) to database!`);
+        },
+
+        async renamePromoPrompt(promo) {
+          const nextName = prompt('Rename Promo:', promo.name);
+          if (!nextName || !nextName.trim() || nextName.trim() === promo.name) return;
+          try {
+            await this.apiFetch(`/api/promos/${promo.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name: nextName.trim() }),
+            });
+            await this.refreshCoreData();
+            this.notify(`Renamed promo to "${nextName.trim()}".`);
+          } catch (err) {
+            this.notify(`Rename failed: ${err.message}`, 'error');
+          }
+        },
+
+        async openPromoSlotsInspector(promo) {
+          this.inspectedPromo = promo;
+          this.inspectorViewMode = 'grid';
+          try {
+            this.inspectedSlots = await this.apiFetch(`/api/promos/${promo.id}/slots`);
+            this.inspectorModalOpen = true;
+          } catch (err) {
+            this.notify(`Failed to load slots: ${err.message}`, 'error');
+          }
+        },
+
+        async addInspectorSlot() {
+          if (!this.inspectedPromo) return;
+          try {
+            const created = await this.apiFetch(`/api/promos/${this.inspectedPromo.id}/slots`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                day: 'Saturday',
+                time_slot: '08:00-09:30',
+                session_type: 'TD',
+                group_target: 'G1',
+                module_name: 'New Module',
+                room: 'Salle 1',
+              }),
+            });
+            this.inspectedSlots.unshift(created);
+            await this.refreshCoreData();
+          } catch (err) {
+            this.notify(`Could not add slot: ${err.message}`, 'error');
+          }
+        },
+
+        async saveEditedSlot(slot) {
+          try {
+            const updated = await this.apiFetch(`/api/slots/${slot.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                day: slot.day,
+                time_slot: slot.time_slot,
+                session_type: slot.session_type,
+                group_target: slot.group_target,
+                module_name: slot.module_name,
+                room: slot.room,
+              }),
+            });
+            Object.assign(slot, updated);
+            await this.refreshCoreData();
+            this.notify('Slot updated.');
+          } catch (err) {
+            this.notify(`Slot update failed: ${err.message}`, 'error');
+          }
+        },
+
+        async removeExistingSlot(slotId) {
+          try {
+            await this.apiFetch(`/api/slots/${slotId}`, { method: 'DELETE' });
+            this.inspectedSlots = this.inspectedSlots.filter((s) => s.id !== slotId);
+            await this.refreshCoreData();
+            this.notify('Slot removed.');
+          } catch (err) {
+            this.notify(`Delete failed: ${err.message}`, 'error');
+          }
+        },
+
+        async deletePromo(promo) {
+          if (!confirm(`Delete "${promo.name}" and cascade-delete its ${promo.slot_count} slots and ${promo.member_count} members?`)) {
+            return;
+          }
+          try {
+            await this.apiFetch(`/api/promos/${promo.id}`, { method: 'DELETE' });
+            if (String(this.newMember.promo_id) === String(promo.id)) this.newMember.promo_id = '';
+            await this.refreshCoreData();
+            this.notify(`Deleted "${promo.name}".`);
+          } catch (err) {
+            this.notify(`Delete failed: ${err.message}`, 'error');
+          }
+        },
+
+        // -----------------------------------------------------------------
+        // Promo Members Roster & Saved Member Assignment
+        // -----------------------------------------------------------------
+        findPromoByName(name) {
+          if (!name) return null;
+          const clean = name.trim().toLowerCase();
+          return this.promos.find((p) => p.name.toLowerCase() === clean) || null;
+        },
+
+        async openPromoMembersModal(promo) {
+          if (!promo) return;
+          this.activePromoForMembers = promo;
+          this.promoMembersModalOpen = true;
+          this.promoMembersSubTab = 'assigned';
+          this.assignSavedSearch = '';
+          this.assignSavedSelectedIds = [];
+
+          // Choose sensible default group from timetable (e.g. G6, G1)
+          const preferredGroup =
+            (promo.slot_groups && promo.slot_groups.length > 0 && promo.slot_groups[0]) ||
+            (promo.groups && promo.groups.length > 0 && promo.groups[0]) ||
+            'G1';
+          this.assignTargetGroup = preferredGroup;
+          this.quickPromoMember.group_name = preferredGroup;
+
+          await this.loadPromoMembers(promo.id);
+        },
+
+        async loadPromoMembers(promoId) {
+          this.promoMembersLoading = true;
+          try {
+            this.promoMembersList = await this.apiFetch(`/api/promos/${promoId}/members`);
+          } catch (err) {
+            this.notify(`Failed to load promo members: ${err.message}`, 'error');
+          } finally {
+            this.promoMembersLoading = false;
+          }
+        },
+
+        toggleSelectAllForAssign() {
+          const list = this.availableSavedMembersForAssign;
+          const allIds = list.map((m) => m.id);
+          const allSelected = allIds.length > 0 && allIds.every((id) => this.assignSavedSelectedIds.includes(id));
+          if (allSelected) {
+            this.assignSavedSelectedIds = [];
+          } else {
+            this.assignSavedSelectedIds = [...allIds];
+          }
+        },
+
+        toggleSelectMemberForAssign(memberId) {
+          const idx = this.assignSavedSelectedIds.indexOf(memberId);
+          if (idx !== -1) {
+            this.assignSavedSelectedIds.splice(idx, 1);
+          } else {
+            this.assignSavedSelectedIds.push(memberId);
+          }
+        },
+
+        async assignSavedMembersToPromo() {
+          if (!this.activePromoForMembers || this.assignSavedSelectedIds.length === 0) return;
+          const promo = this.activePromoForMembers;
+          const grp = (this.assignTargetGroup || 'G1').trim().toUpperCase();
+          try {
+            const res = await this.apiFetch(`/api/promos/${promo.id}/members/assign`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                member_ids: this.assignSavedSelectedIds,
+                group_name: grp,
+              }),
+            });
+            this.assignSavedSelectedIds = [];
+            await Promise.all([this.loadPromoMembers(promo.id), this.refreshCoreData()]);
+            this.activePromoForMembers = this.findPromoByName(promo.name) || promo;
+            this.promoMembersSubTab = 'assigned';
+            this.notify(`Assigned ${res.assigned_count} member(s) to "${promo.name}" (${grp})!`);
+          } catch (err) {
+            this.notify(`Assignment failed: ${err.message}`, 'error');
+          }
+        },
+
+        async quickAddMemberToPromo() {
+          if (!this.activePromoForMembers || !this.quickPromoMember.full_name?.trim()) {
+            this.notify('Enter a member full name first.', 'error');
+            return;
+          }
+          const promo = this.activePromoForMembers;
+          try {
+            const created = await this.apiFetch(`/api/promos/${promo.id}/members`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                full_name: this.quickPromoMember.full_name.trim(),
+                department: this.quickPromoMember.department,
+                role: this.quickPromoMember.role || 'Member',
+                group_name: (this.quickPromoMember.group_name || 'G1').trim().toUpperCase(),
+                discord: this.quickPromoMember.discord?.trim() || null,
+                phone: this.quickPromoMember.phone?.trim() || null,
+                email: this.quickPromoMember.email?.trim() || null,
+                notes: this.quickPromoMember.notes?.trim() || null,
+                is_active: true,
+                shift_exempt: false,
+              }),
+            });
+            this.quickPromoMember.full_name = '';
+            this.quickPromoMember.discord = '';
+            this.quickPromoMember.phone = '';
+            await Promise.all([this.loadPromoMembers(promo.id), this.refreshCoreData()]);
+            this.activePromoForMembers = this.findPromoByName(promo.name) || promo;
+            this.promoMembersSubTab = 'assigned';
+            this.notify(`Added ${created.full_name} (${created.group_name}) to "${promo.name}"!`);
+          } catch (err) {
+            this.notify(`Quick-add failed: ${err.message}`, 'error');
+          }
+        },
+
+        async updateMemberGroupPrompt(member) {
+          const promo = this.activePromoForMembers;
+          const current = member.group_name;
+          const next = prompt(`Change academic group for ${member.full_name}:`, current);
+          if (!next || !next.trim() || next.trim().toUpperCase() === current) return;
+          try {
+            await this.apiFetch(`/api/members/${member.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ group_name: next.trim().toUpperCase() }),
+            });
+            if (promo) await this.loadPromoMembers(promo.id);
+            await this.refreshCoreData();
+            this.notify(`Updated group for ${member.full_name} to ${next.trim().toUpperCase()}.`);
+          } catch (err) {
+            this.notify(`Update failed: ${err.message}`, 'error');
+          }
+        },
+
+        async removeMemberFromPromo(member) {
+          if (!confirm(`Remove ${member.full_name} from the club roster?`)) return;
+          try {
+            await this.apiFetch(`/api/members/${member.id}`, { method: 'DELETE' });
+            if (this.activePromoForMembers) await this.loadPromoMembers(this.activePromoForMembers.id);
+            await this.refreshCoreData();
+            if (this.activePromoForMembers) {
+              this.activePromoForMembers = this.findPromoByName(this.activePromoForMembers.name) || this.activePromoForMembers;
+            }
+            this.notify(`Removed ${member.full_name}.`);
+          } catch (err) {
+            this.notify(`Delete failed: ${err.message}`, 'error');
+          }
+        },
+
+        // -----------------------------------------------------------------
+        // View 4B: Rich Member Roster & Deduplicated CSVs
+        // -----------------------------------------------------------------
+        async addMember() {
+          try {
+            const created = await this.apiFetch('/api/members', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                full_name: this.newMember.full_name,
+                department: this.newMember.department,
+                role: this.newMember.role || 'Member',
+                promo_id: Number(this.newMember.promo_id),
+                group_name: this.newMember.group_name,
+                discord: this.newMember.discord || null,
+              }),
+            });
+            this.newMember.full_name = '';
+            this.newMember.group_name = '';
+            this.newMember.discord = '';
+            await this.refreshCoreData();
+            this.notify(`Added ${created.full_name} (${created.promo_name} · ${created.group_name}).`);
+          } catch (err) {
+            this.notify(err.message, 'error');
+          }
+        },
+
+        async quickToggleMemberFlag(member, field) {
+          try {
+            const nextVal = !member[field];
+            await this.apiFetch(`/api/members/${member.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ [field]: nextVal }),
+            });
+            await this.refreshCoreData();
+          } catch (err) {
+            this.notify(`Toggle failed: ${err.message}`, 'error');
+          }
+        },
+
+        openEditMemberModal(m) {
+          this.editingMember = {
+            id: m.id,
+            full_name: m.full_name,
+            department: m.department,
+            role: m.role || 'Member',
+            promo_id: String(m.promo_id),
+            group_name: m.group_name,
+            discord: m.discord || '',
+            phone: m.phone || '',
+            email: m.email || '',
+            notes: m.notes || '',
+            is_active: Boolean(m.is_active),
+            shift_exempt: Boolean(m.shift_exempt),
+          };
+          this.editMemberModalOpen = true;
+        },
+
+        async saveMemberEdit() {
+          try {
+            await this.apiFetch(`/api/members/${this.editingMember.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                full_name: this.editingMember.full_name,
+                department: this.editingMember.department,
+                role: this.editingMember.role,
+                promo_id: Number(this.editingMember.promo_id),
+                group_name: this.editingMember.group_name,
+                discord: this.editingMember.discord || null,
+                phone: this.editingMember.phone || null,
+                email: this.editingMember.email || null,
+                notes: this.editingMember.notes || null,
+                is_active: Boolean(this.editingMember.is_active),
+                shift_exempt: Boolean(this.editingMember.shift_exempt),
+              }),
+            });
+            this.editMemberModalOpen = false;
+            if (this.promoMembersModalOpen && this.activePromoForMembers) {
+              await this.loadPromoMembers(this.activePromoForMembers.id);
+            }
+            await this.refreshCoreData();
+            if (this.promoMembersModalOpen && this.activePromoForMembers) {
+              this.activePromoForMembers =
+                this.findPromoByName(this.activePromoForMembers.name) || this.activePromoForMembers;
+            }
+            this.notify('Member profile updated.');
+          } catch (err) {
+            this.notify(`Update failed: ${err.message}`, 'error');
+          }
+        },
+
+        async removeMember(m) {
+          if (!confirm(`Remove ${m.full_name} from the club roster?`)) return;
+          try {
+            await this.apiFetch(`/api/members/${m.id}`, { method: 'DELETE' });
+            await this.refreshCoreData();
+            this.notify(`Removed ${m.full_name}.`);
+          } catch (err) {
+            this.notify(`Delete failed: ${err.message}`, 'error');
+          }
+        },
+
+        downloadSampleCSV() {
+          const sample = [
+            'full_name,department,role,promo_name,group_name,discord,phone,email,is_active,shift_exempt,notes',
+            'Yacine Benali,Dev,Dept Lead,L3 GL,G1,@yacine.dz,0550123456,yacine@univ.dz,true,false,',
+            'Ines Mansouri,Design,Member,L2 Info SI,3,@ines.ui,0661223344,,true,false,',
+            'Mehdi Saidi,Media,Senior Member,L1 Info Sec 2,15,@mehdi.cam,0770998877,,true,true,Event photographer',
+          ].join('\n');
+          const blob = new Blob(['\uFEFF' + sample], { type: 'text/csv;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'club_roster_template.csv';
+          a.click();
+          URL.revokeObjectURL(url);
+        },
+
+        async uploadMembersCSV(e) {
+          const file = e.target?.files?.[0];
+          if (!file) return;
+          e.target.value = '';
+          try {
+            const fd = new FormData();
+            fd.append('file', file);
+            const res = await this.apiFetch(
+              `/api/members/bulk-csv?on_duplicate=${this.csvDuplicateMode}`,
+              { method: 'POST', body: fd }
+            );
+            await this.refreshCoreData();
+            const parts = [`${res.imported_count} added`];
+            if (res.updated_count > 0) parts.push(`${res.updated_count} updated`);
+            if (res.skipped_count > 0) parts.push(`${res.skipped_count} skipped`);
+            if (res.created_promos?.length) parts.push(`new promos: ${res.created_promos.join(', ')}`);
+            this.notify(`CSV Import complete (${parts.join(' · ')}).`);
+          } catch (err) {
+            this.notify(`CSV import failed: ${err.message}`, 'error');
+          }
+        },
+      };
+    }
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
+</body>
+</html>
